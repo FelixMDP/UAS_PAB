@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "133593271209",
+    "project_id": "frkthreads",
+    "storage_bucket": "frkthreads.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:133593271209:android:6f0944846a758c2f0652b8",
+        "android_client_info": {
+          "package_name": "com.example.frkthreads"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDerDfFkPY9du78coXjvekEGXuG314pZTw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -5,30 +5,6 @@
 //   image_picker: ^0.8.7+4
 //   permission_handler: ^10.2.0
 
-// --- ANDROID SETUP ---
-// in AndroidManifest.xml (android/app/src/main/AndroidManifest.xml):
-//   <uses-permission android:name="android.permission.CAMERA" />
-//   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-// in <application> add:
-//   <provider
-//     android:name="androidx.core.content.FileProvider"
-//     android:authorities="\${applicationId}.fileprovider"
-//     android:exported="false"
-//     android:grantUriPermissions="true">
-//     <meta-data
-//       android:name="android.support.FILE_PROVIDER_PATHS"
-//       android:resource="@xml/provider_paths"/>
-//   </provider>
-
-// --- iOS SETUP ---
-// in Info.plist add:
-//   <key>NSCameraUsageDescription</key>
-//   <string>We need camera access to take photos for your post.</string>
-//   <key>NSPhotoLibraryUsageDescription</key>
-//   <string>We need photo library access to select images for your post.</string>
-//   <key>NSLocationWhenInUseUsageDescription</key>
-//   <string>We need your location to tag your post.</string>
-
 import 'dart:convert';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -53,29 +29,22 @@ class _AddPostScreenState extends State<AddPostScreen> {
   final TextEditingController _captionController = TextEditingController();
   final ImagePicker _picker = ImagePicker();
   bool _isUploading = false;
-  Position? _pickedLocation;
+  LatLng? _pickedLocation;
 
   static const Color _background = Color(0xFF2D3B3A);
   static const Color _accent = Color(0xFFB88C66);
   static const Color _card = Color(0xFFEFEFEF);
 
   Future<void> _pickImage(ImageSource source) async {
-    // Request camera or photo permission
     if (source == ImageSource.camera) {
-      var status = await Permission.camera.request();
-      if (!status.isGranted) return;
+      if (!await Permission.camera.request().isGranted) return;
     } else {
-      var status = await Permission.photos.request();
-      if (!status.isGranted) return;
+      if (!await Permission.photos.request().isGranted) return;
     }
-
     final picked = await _picker.pickImage(source: source);
     if (picked != null) {
       final file = File(picked.path);
-      final compressed = await FlutterImageCompress.compressWithFile(
-        file.path,
-        quality: 50,
-      );
+      final compressed = await FlutterImageCompress.compressWithFile(file.path, quality: 50);
       setState(() {
         _image = file;
         _base64Image = compressed != null ? base64Encode(compressed) : null;
@@ -112,9 +81,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
   }
 
   Future<void> _selectLocation() async {
-    var status = await Permission.locationWhenInUse.request();
-    if (!status.isGranted) return;
-    final pos = await Navigator.push<Position>(
+    if (!await Permission.locationWhenInUse.request().isGranted) return;
+    final pos = await Navigator.push<LatLng>(
       context,
       MaterialPageRoute(builder: (_) => const MapPickerScreen()),
     );
@@ -139,10 +107,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'fullName': userDoc.data()?['fullName'] ?? 'Anonymous',
       });
       Navigator.of(context).pop();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gagal mengunggah post.')),
-      );
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
@@ -172,11 +136,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                 ),
                 child: Center(
                   child: _isUploading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Text('Post', style: TextStyle(color: Colors.white, fontSize: 16)),
                 ),
               ),
@@ -201,9 +161,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
                       : null,
                 ),
                 child: _image == null
-                    ? const Center(
-                        child: Icon(Icons.add, size: 48, color: Colors.black26),
-                      )
+                    ? const Center(child: Icon(Icons.add, size: 48, color: Colors.black26))
                     : null,
               ),
             ),
@@ -215,12 +173,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
               decoration: InputDecoration(
                 hintText: 'Enter caption',
                 hintStyle: const TextStyle(color: Colors.white54),
-                enabledBorder: const UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white30),
-                ),
-                focusedBorder: const UnderlineInputBorder(
-                  borderSide: BorderSide(color: Colors.white),
-                ),
+                enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white30)),
+                focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.white)),
               ),
             ),
             const SizedBox(height: 24),
@@ -228,39 +182,56 @@ class _AddPostScreenState extends State<AddPostScreen> {
             const SizedBox(height: 8),
             ElevatedButton(
               onPressed: _selectLocation,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _accent,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: Text(
-                _pickedLocation == null ? 'Choose From Map' : 'Location Selected',
-                style: const TextStyle(color: Colors.white),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: _accent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), padding: const EdgeInsets.symmetric(vertical: 12)),
+              child: Text(_pickedLocation == null ? 'Choose From Map' : 'Location Selected', style: const TextStyle(color: Colors.white)),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: BottomAppBar(
-        color: _accent,
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 6,
-        child: const SizedBox(height: 56),
-      ),
+      bottomNavigationBar: BottomAppBar(color: _accent, shape: const CircularNotchedRectangle(), notchMargin: 6, child: const SizedBox(height: 56)),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
 }
 
-// Dummy map picker screen
-class MapPickerScreen extends StatelessWidget {
+class MapPickerScreen extends StatefulWidget {
   const MapPickerScreen({Key? key}) : super(key: key);
+  @override
+  State<MapPickerScreen> createState() => _MapPickerScreenState();
+}
+
+class _MapPickerScreenState extends State<MapPickerScreen> {
+  late GoogleMapController _mapController;
+  LatLng? _selected;
+
+  static const CameraPosition _initial = CameraPosition(target: LatLng(-6.200000, 106.816666), zoom: 12);
+
+  void _onTap(LatLng pos) {
+    setState(() => _selected = pos);
+  }
+
+  void _confirm() {
+    if (_selected != null) Navigator.of(context).pop(_selected);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Pick Location')),
-      body: const Center(child: Text('Map goes here')),
+      appBar: AppBar(
+        title: const Text('Pick Location'),
+        actions: [
+          TextButton(
+            onPressed: _confirm,
+            child: const Text('OK', style: TextStyle(color: Colors.white)),
+          )
+        ],
+      ),
+      body: GoogleMap(
+        initialCameraPosition: _initial,
+        onMapCreated: (c) => _mapController = c,
+        onTap: _onTap,
+        markers: _selected != null ? {Marker(markerId: const MarkerId('sel'), position: _selected!)} : {},
+      ),
     );
   }
 }

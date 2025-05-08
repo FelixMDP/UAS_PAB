@@ -3,6 +3,31 @@
 //   google_maps_flutter: ^2.1.8
 //   flutter_image_compress: ^1.1.1
 //   image_picker: ^0.8.7+4
+//   permission_handler: ^10.2.0
+
+// --- ANDROID SETUP ---
+// in AndroidManifest.xml (android/app/src/main/AndroidManifest.xml):
+//   <uses-permission android:name="android.permission.CAMERA" />
+//   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+// in <application> add:
+//   <provider
+//     android:name="androidx.core.content.FileProvider"
+//     android:authorities="\${applicationId}.fileprovider"
+//     android:exported="false"
+//     android:grantUriPermissions="true">
+//     <meta-data
+//       android:name="android.support.FILE_PROVIDER_PATHS"
+//       android:resource="@xml/provider_paths"/>
+//   </provider>
+
+// --- iOS SETUP ---
+// in Info.plist add:
+//   <key>NSCameraUsageDescription</key>
+//   <string>We need camera access to take photos for your post.</string>
+//   <key>NSPhotoLibraryUsageDescription</key>
+//   <string>We need photo library access to select images for your post.</string>
+//   <key>NSLocationWhenInUseUsageDescription</key>
+//   <string>We need your location to tag your post.</string>
 
 import 'dart:convert';
 import 'dart:io';
@@ -13,6 +38,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class AddPostScreen extends StatefulWidget {
   const AddPostScreen({Key? key}) : super(key: key);
@@ -33,11 +59,23 @@ class _AddPostScreenState extends State<AddPostScreen> {
   static const Color _accent = Color(0xFFB88C66);
   static const Color _card = Color(0xFFEFEFEF);
 
-  Future<void> _pickImage() async {
-    final picked = await _picker.pickImage(source: ImageSource.gallery);
+  Future<void> _pickImage(ImageSource source) async {
+    // Request camera or photo permission
+    if (source == ImageSource.camera) {
+      var status = await Permission.camera.request();
+      if (!status.isGranted) return;
+    } else {
+      var status = await Permission.photos.request();
+      if (!status.isGranted) return;
+    }
+
+    final picked = await _picker.pickImage(source: source);
     if (picked != null) {
       final file = File(picked.path);
-      final compressed = await FlutterImageCompress.compressWithFile(file.path, quality: 50);
+      final compressed = await FlutterImageCompress.compressWithFile(
+        file.path,
+        quality: 50,
+      );
       setState(() {
         _image = file;
         _base64Image = compressed != null ? base64Encode(compressed) : null;
@@ -45,11 +83,40 @@ class _AddPostScreenState extends State<AddPostScreen> {
     }
   }
 
+  void _showImageSourceDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: _background,
+        title: const Text('Choose Image Source', style: TextStyle(color: Colors.white)),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _pickImage(ImageSource.camera);
+            },
+            icon: const Icon(Icons.camera_alt, color: Colors.white),
+            label: const Text('Camera', style: TextStyle(color: Colors.white)),
+          ),
+          TextButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _pickImage(ImageSource.gallery);
+            },
+            icon: const Icon(Icons.photo, color: Colors.white),
+            label: const Text('Gallery', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _selectLocation() async {
-    // placeholder: navigate to map picker screen
+    var status = await Permission.locationWhenInUse.request();
+    if (!status.isGranted) return;
     final pos = await Navigator.push<Position>(
       context,
-      MaterialPageRoute(builder: (_) => MapPickerScreen()),
+      MaterialPageRoute(builder: (_) => const MapPickerScreen()),
     );
     if (pos != null) setState(() => _pickedLocation = pos);
   }
@@ -123,7 +190,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             GestureDetector(
-              onTap: _pickImage,
+              onTap: _showImageSourceDialog,
               child: Container(
                 height: 180,
                 decoration: BoxDecoration(
@@ -147,7 +214,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
                 hintText: 'Enter caption',
-                hintStyle: TextStyle(color: Colors.white54),
+                hintStyle: const TextStyle(color: Colors.white54),
                 enabledBorder: const UnderlineInputBorder(
                   borderSide: BorderSide(color: Colors.white30),
                 ),
@@ -178,7 +245,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
         color: _accent,
         shape: const CircularNotchedRectangle(),
         notchMargin: 6,
-        child: SizedBox(height: 56),
+        child: const SizedBox(height: 56),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
@@ -191,7 +258,6 @@ class MapPickerScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Implement GoogleMap and let user tap to pick location
     return Scaffold(
       appBar: AppBar(title: const Text('Pick Location')),
       body: const Center(child: Text('Map goes here')),

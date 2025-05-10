@@ -57,7 +57,7 @@ class SignInScreenState extends State<SignInScreen> {
                         cursorColor: _textDark,                        decoration: InputDecoration(
                           filled: true,
                           fillColor: _cream,
-                          labelText: 'Username',
+                          labelText: 'Email',
                           labelStyle: const TextStyle(color: _textDark),
                           floatingLabelBehavior: FloatingLabelBehavior.never,
                           border: OutlineInputBorder(

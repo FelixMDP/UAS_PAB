@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class PostScreen extends StatefulWidget {
   final String postId;
@@ -21,16 +23,29 @@ class _PostScreenState extends State<PostScreen> {
   BitmapDescriptor? customMarker;
   double? _latitude;
   double? _longitude;
-  bool isLiked = false; // Tambahkan variabel isLiked
+  bool isLiked = false; // Track like status
   bool isSubmittingComment = false;
   bool isSubmittingLike = false;
+
+  GoogleMapController? _mapController;
+  bool _isMapReady = false;
+  Set<Marker> _markers = {};
 
   @override
   void initState() {
     super.initState();
-    _getLocation(); // Get location when screen loads
-    _fetchPost();
-    _createCustomMarker();
+    _initializePost();
+  }
+
+  Future<void> _initializePost() async {
+    await _getLocation();
+    await _fetchPost();
+    await _createCustomMarker();
+    if (mounted) {
+      setState(() {
+        _isMapReady = true;
+      });
+    }
   }
 
   Future<void> _getLocation() async {
@@ -166,7 +181,7 @@ class _PostScreenState extends State<PostScreen> {
         });
       }
 
-      _fetchPost(); // Refresh post data
+      _fetchPost(); // Refresh data
     } catch (e) {
       debugPrint('Error toggling like: $e');
     } finally {
@@ -239,7 +254,10 @@ class _PostScreenState extends State<PostScreen> {
   }
 
   Widget _buildLocationSection(double? latitude, double? longitude) {
-    if (latitude == null || longitude == null) {
+    if (latitude == null ||
+        longitude == null ||
+        latitude == 0.0 ||
+        longitude == 0.0) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: Card(
@@ -249,7 +267,7 @@ class _PostScreenState extends State<PostScreen> {
               children: const [
                 Icon(Icons.location_off),
                 SizedBox(width: 8),
-                Text('Location not available'),
+                Text('Location not available for this post'),
               ],
             ),
           ),
@@ -257,18 +275,18 @@ class _PostScreenState extends State<PostScreen> {
       );
     }
 
-    try {
-      return Container(
-        height: 200,
-        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Stack(
-            children: [
+    return Container(
+      height: 200,
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            if (_isMapReady)
               GoogleMap(
                 initialCameraPosition: CameraPosition(
                   target: LatLng(latitude, longitude),
@@ -282,30 +300,43 @@ class _PostScreenState extends State<PostScreen> {
                     infoWindow: const InfoWindow(title: 'Post Location'),
                   ),
                 },
+                onMapCreated: (GoogleMapController controller) {
+                  _mapController = controller;
+                },
                 mapType: MapType.normal,
                 zoomControlsEnabled: true,
                 myLocationEnabled: true,
                 myLocationButtonEnabled: true,
                 compassEnabled: true,
+              )
+            else
+              const Center(child: CircularProgressIndicator()),
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: FloatingActionButton.small(
+                onPressed: () => _openInGoogleMaps(latitude, longitude),
+                child: const Icon(Icons.directions),
               ),
-              Positioned(
-                bottom: 16,
-                right: 16,
-                child: FloatingActionButton.small(
-                  onPressed: _getLocation,
-                  child: const Icon(Icons.my_location),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
-    } catch (e) {
-      debugPrint('Error building map: $e');
-      return const Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Text('Error loading map'),
-      );
+      ),
+    );
+  }
+
+  Future<void> _openInGoogleMaps(double latitude, double longitude) async {
+    final url = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude',
+    );
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open Google Maps')),
+        );
+      }
     }
   }
 
@@ -373,29 +404,76 @@ class _PostScreenState extends State<PostScreen> {
     final latitude = data['latitude'] as double?;
     final longitude = data['longitude'] as double?;
 
-    if (latitude == null || longitude == null) {
+    if (latitude == null ||
+        longitude == null ||
+        latitude == 0.0 ||
+        longitude == 0.0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Location is not available for this post'),
+        ),
+      );
+      return;
+    }
+
+    if (!_isMapReady) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Location not available')));
+      ).showSnackBar(const SnackBar(content: Text('Map is still loading...')));
       return;
     }
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder:
           (context) => Container(
-            height: 300,
-            child: GoogleMap(
-              initialCameraPosition: CameraPosition(
-                target: LatLng(latitude, longitude),
-                zoom: 15,
-              ),
-              markers: {
-                Marker(
-                  markerId: const MarkerId('postLocation'),
-                  position: LatLng(latitude, longitude),
+            height: MediaQuery.of(context).size.height * 0.7,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Post Location',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.directions),
+                      label: const Text('Directions'),
+                      onPressed: () => _openInGoogleMaps(latitude, longitude),
+                    ),
+                  ],
                 ),
-              },
+                const SizedBox(height: 8),
+                Expanded(
+                  child: GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: LatLng(latitude, longitude),
+                      zoom: 15,
+                    ),
+                    markers: {
+                      Marker(
+                        markerId: const MarkerId('postLocation'),
+                        position: LatLng(latitude, longitude),
+                        infoWindow: InfoWindow(
+                          title: 'Post Location',
+                          snippet:
+                              '${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}',
+                        ),
+                      ),
+                    },
+                    mapType: MapType.normal,
+                    zoomControlsEnabled: true,
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: true,
+                  ),
+                ),
+              ],
             ),
           ),
     );
@@ -622,6 +700,7 @@ class _PostScreenState extends State<PostScreen> {
 
   @override
   void dispose() {
+    _mapController?.dispose();
     _commentController.dispose();
     super.dispose();
   }

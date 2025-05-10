@@ -20,6 +20,7 @@ dependencies:
   google_maps_flutter: ^2.12.1 # Ensure this is included
   shimmer: ^3.0.0
   google_generative_ai: ^0.4.7
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:

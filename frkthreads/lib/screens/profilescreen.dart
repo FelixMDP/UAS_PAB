@@ -44,7 +44,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildHeader() {
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').doc(_uid).snapshots(),
+      stream:
+          FirebaseFirestore.instance.collection('users').doc(_uid).snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -72,15 +73,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(fullName,
-                            style: const TextStyle(
-                                color: _textLight,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold)),
+                        Text(
+                          fullName,
+                          style: const TextStyle(
+                            color: _textLight,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         const SizedBox(height: 4),
-                        Text(bio,
-                            style: const TextStyle(
-                                color: _textLight, fontSize: 14)),
+                        Text(
+                          bio,
+                          style: const TextStyle(
+                            color: _textLight,
+                            fontSize: 14,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -93,15 +101,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        foregroundColor: _textDark, backgroundColor: _card,
+                        foregroundColor: _textDark,
+                        backgroundColor: _card,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                       onPressed: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const EditProfileScreen()),
+                            builder: (_) => const EditProfileScreen(),
+                          ),
                         );
                       },
                       child: const Text('Edit Profile'),
@@ -111,15 +122,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Expanded(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        foregroundColor: _textDark, backgroundColor: _card,
+                        foregroundColor: _textDark,
+                        backgroundColor: _card,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                       onPressed: () {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const SettingsScreen()),
+                            builder: (_) => const SettingsScreen(),
+                          ),
                         );
                       },
                       child: const Text('Setting'),
@@ -149,22 +163,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               labelColor: _background,
               unselectedLabelColor: _textLight,
               indicator: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8)),
-              tabs: const [
-                Tab(text: 'Threads'),
-                Tab(text: 'Media'),
-              ],
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              tabs: const [Tab(text: 'Threads'), Tab(text: 'Media')],
             ),
           ),
           const SizedBox(height: 8),
           SizedBox(
             height: 400,
             child: TabBarView(
-              children: [
-                _buildThreadsView(),
-                _buildMediaView(),
-              ],
+              children: [_buildThreadsView(), _buildMediaView()],
             ),
           ),
         ],
@@ -174,11 +183,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildThreadsView() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('posts')
-          .where('userId', isEqualTo: _uid)
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('posts')
+              .where('userId', isEqualTo: _uid)
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -186,7 +196,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final docs = snapshot.data!.docs;
         if (docs.isEmpty) {
           return const Center(
-              child: Text('No threads yet.', style: TextStyle(color: Colors.white)));
+            child: Text(
+              'No threads yet.',
+              style: TextStyle(color: Colors.white),
+            ),
+          );
         }
         return ListView.builder(
           itemCount: docs.length,
@@ -205,11 +219,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildMediaView() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('posts')
-          .where('userId', isEqualTo: _uid)
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('posts')
+              .where('userId', isEqualTo: _uid)
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
@@ -217,12 +232,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
         final docs = snapshot.data!.docs;
         if (docs.isEmpty) {
           return const Center(
-              child: Text('No media yet.', style: TextStyle(color: Colors.white)));
+            child: Text('No media yet.', style: TextStyle(color: Colors.white)),
+          );
         }
         return GridView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3, crossAxisSpacing: 4, mainAxisSpacing: 4),
+            crossAxisCount: 3,
+            crossAxisSpacing: 4,
+            mainAxisSpacing: 4,
+          ),
           itemCount: docs.length,
           itemBuilder: (context, index) {
             final data = docs[index].data() as Map<String, dynamic>;
@@ -230,10 +249,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             if (imageBase64 == null) return const SizedBox.shrink();
             return ClipRRect(
               borderRadius: BorderRadius.circular(4),
-              child: Image.memory(
-                base64Decode(imageBase64),
-                fit: BoxFit.cover,
-              ),
+              child: Image.memory(base64Decode(imageBase64), fit: BoxFit.cover),
             );
           },
         );
@@ -263,7 +279,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadUserData() async {
-    final doc = await FirebaseFirestore.instance.collection('users').doc(_uid).get();
+    final doc =
+        await FirebaseFirestore.instance.collection('users').doc(_uid).get();
     final data = doc.data();
     if (data != null) {
       _fullNameCtrl.text = data['fullName'] ?? '';
@@ -301,9 +318,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const Spacer(),
             ElevatedButton(
               onPressed: _isSaving ? null : _saveProfile,
-              child: _isSaving
-                  ? const CircularProgressIndicator()
-                  : const Text('Save'),
+              child:
+                  _isSaving
+                      ? const CircularProgressIndicator()
+                      : const Text('Save'),
             ),
           ],
         ),

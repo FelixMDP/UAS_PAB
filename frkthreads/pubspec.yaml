@@ -17,7 +17,9 @@ dependencies:
   geolocator: ^14.0.0
   image_picker: ^1.1.2
   permission_handler: ^11.3.0
-  google_maps_flutter: ^2.12.1
+  google_maps_flutter: ^2.12.1 # Ensure this is included
+  shimmer: ^3.0.0
+  google_generative_ai: ^0.4.7
 
 dev_dependencies:
   flutter_test:

@@ -4,6 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'addpostscreen.dart';
+import 'searchscreen.dart';
+import 'notificationscreen.dart';
+import 'profilescreen.dart';
 import 'signinscreen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -28,9 +31,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _widgetOptions = <Widget>[
     const PostListView(),
-    const PlaceholderWidget(title: 'Search'),
-    const PlaceholderWidget(title: 'Notifications'),
-    const PlaceholderWidget(title: 'Profile'),
+    const SearchScreen(),
+    NotificationScreen(),
+    const ProfileScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -64,29 +67,12 @@ class _HomeScreenState extends State<HomeScreen> {
           SizedBox(width: 10),
         ],
       ),
-      body: Column(
-        children: [
-          SizedBox(
-            height: 80,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.all(10),
-              itemCount: 6,
-              itemBuilder: (context, index) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 6),
-                  child: CircleAvatar(radius: 30, backgroundColor: Colors.grey),
-                );
-              },
-            ),
-          ),
-          Expanded(child: _widgetOptions[_selectedIndex]),
-        ],
-      ),
+      body: _widgetOptions[_selectedIndex], // Use the selected widget
       floatingActionButton: FloatingActionButton(
         backgroundColor: _fabColor,
         onPressed: () {
-          Navigator.of(context).push(
+          Navigator.push(
+            context,
             MaterialPageRoute(builder: (context) => const AddPostScreen()),
           );
         },
@@ -98,7 +84,6 @@ class _HomeScreenState extends State<HomeScreen> {
         shape: const CircularNotchedRectangle(),
         notchMargin: 6.0,
         child: SizedBox(
-          // Added SizedBox to constrain the height.
           height: 60, // Set a fixed height for the BottomAppBar
           child: BottomNavigationBar(
             backgroundColor: Colors.transparent,
@@ -109,13 +94,19 @@ class _HomeScreenState extends State<HomeScreen> {
             currentIndex: _selectedIndex,
             onTap: _onItemTapped,
             items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: ''),
-              BottomNavigationBarItem(icon: Icon(Icons.search), label: ''),
+              BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
               BottomNavigationBarItem(
-                icon: Icon(Icons.favorite_border),
-                label: '',
+                icon: Icon(Icons.search),
+                label: 'Search',
               ),
-              BottomNavigationBarItem(icon: Icon(Icons.person), label: ''),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.notifications),
+                label: 'Notifications',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person),
+                label: 'Profile',
+              ),
             ],
           ),
         ),
@@ -235,19 +226,6 @@ class PostListView extends StatelessWidget {
           },
         );
       },
-    );
-  }
-}
-
-class PlaceholderWidget extends StatelessWidget {
-  final String title;
-
-  const PlaceholderWidget({super.key, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text('$title Page', style: const TextStyle(fontSize: 24)),
     );
   }
 }

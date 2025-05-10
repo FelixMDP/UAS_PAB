@@ -50,19 +50,23 @@ class SignInScreenState extends State<SignInScreen> {
                 Form(
                   key: _formKey,
                   child: Column(
-                    children: [
-                      TextFormField(
+                    children: [                      TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         style: const TextStyle(color: _textDark),
-                        decoration: InputDecoration(
+                        cursorColor: _textDark,                        decoration: InputDecoration(
                           filled: true,
                           fillColor: _cream,
                           labelText: 'Username',
                           labelStyle: const TextStyle(color: _textDark),
+                          floatingLabelBehavior: FloatingLabelBehavior.never,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
                             borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: const BorderSide(color: _textDark),
                           ),
                           prefixIcon: const Icon(
                             Icons.person,
@@ -76,19 +80,23 @@ class SignInScreenState extends State<SignInScreen> {
                           return null;
                         },
                       ),
-                      const SizedBox(height: 16),
-                      TextFormField(
+                      const SizedBox(height: 16),                      TextFormField(
                         controller: _passwordController,
                         obscureText: !_isPasswordVisible,
                         style: const TextStyle(color: _textDark),
-                        decoration: InputDecoration(
+                        cursorColor: _textDark,                        decoration: InputDecoration(
                           filled: true,
                           fillColor: _cream,
                           labelText: 'Password',
                           labelStyle: const TextStyle(color: _textDark),
+                          floatingLabelBehavior: FloatingLabelBehavior.never,
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
                             borderSide: BorderSide.none,
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: const BorderSide(color: _textDark),
                           ),
                           prefixIcon: const Icon(Icons.lock, color: _textDark),
                           suffixIcon: IconButton(

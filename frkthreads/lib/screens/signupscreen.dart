@@ -187,22 +187,27 @@ class SignUpScreenState extends State<SignUpScreen> {
     String? Function(String?)? validator,
     Color? textColor,
     Color? fieldColor,
-  }) {
-    return TextFormField(
+  }) {    return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,
       style: TextStyle(color: textColor ?? Colors.black),
+      cursorColor: textColor,
       decoration: InputDecoration(
         filled: true,
         fillColor: fieldColor ?? Colors.white,
         labelText: label,
         labelStyle: TextStyle(color: textColor ?? Colors.black),
+        floatingLabelBehavior: FloatingLabelBehavior.never,
         prefixIcon: Icon(icon, color: textColor ?? Colors.black),
         suffixIcon: suffixIcon,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30),
           borderSide: BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: BorderSide(color: textColor ?? Colors.black),
         ),
       ),
       validator: validator,

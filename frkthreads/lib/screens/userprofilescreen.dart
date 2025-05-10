@@ -58,10 +58,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       ),
     );
   }
-
   Widget _buildHeader() {
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').doc(widget.userId).snapshots(),
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(widget.userId).get(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator(color: _textLight));
@@ -116,14 +115,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       },
     );
   }
-
   Widget _buildPosts() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
+    return FutureBuilder<QuerySnapshot>(
+      future: FirebaseFirestore.instance
           .collection('posts')
           .where('userId', isEqualTo: widget.userId)
           .orderBy('createdAt', descending: true)
-          .snapshots(),
+          .limit(10)
+          .get(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator(color: _textLight));

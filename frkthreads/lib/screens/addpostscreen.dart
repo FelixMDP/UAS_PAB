@@ -202,14 +202,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'longitude': _longitude,
         'fullName': fullName,
         'userId': uid,
-<<<<<<< Updated upstream
-=======
-        'likes': 0,
-        'likedBy': [], // Array untuk menyimpan user IDs yang like post
-        'comments': [], // Array untuk menyimpan komentar
-        'commentDetails':
-            [], // Array untuk menyimpan detail komentar (user, waktu, dll)
->>>>>>> Stashed changes
       });
 
       if (!mounted) return;

@@ -3,6 +3,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:frkthreads/providers/theme_provider.dart';
+import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'addpostscreen.dart';
 import 'searchscreen.dart';
 import 'notificationscreen.dart';
@@ -16,18 +20,25 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
+  late AnimationController _controller;
 
-  // Consistent color palette
-  static const Color _background = Color(0xFF2D3B3A); // Dark background
-  static const Color _appBarColor = Color(0xFFB88C66);
-  static const Color _iconColor = Color(0xFF2D3B3A);
-  static const Color _fabColor = Color(0xFF2D3B3A);
-  static const Color _bottomBarColor = Color(0xFFB88C66);
-  static const Color _selectedItemColor = Colors.black;
-  static const Color _unselectedItemColor = Colors.black54;
-  static const Color _cardColor = Colors.white; // Consistent card color
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   final List<Widget> _widgetOptions = <Widget>[
     const PostListView(),
@@ -35,8 +46,9 @@ class _HomeScreenState extends State<HomeScreen> {
     NotificationScreen(),
     const ProfileScreen(),
   ];
-
   void _onItemTapped(int index) {
+    // Menyesuaikan indeks karena ada placeholder untuk FAB
+    if (index > 1) index--; // Mengompensasi placeholder FAB
     setState(() {
       _selectedIndex = index;
     });
@@ -46,70 +58,136 @@ class _HomeScreenState extends State<HomeScreen> {
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (context) => const SignInScreen()),
+      PageRouteBuilder(
+        pageBuilder: (context, animation, secondaryAnimation) => const SignInScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 500),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+    
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2),
       appBar: AppBar(
-        backgroundColor: _appBarColor,
-        title: const Text(
-          'FRKTHREADS',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-        ),
-        actions: const [
-          Icon(Icons.brightness_2, color: _iconColor),
-          SizedBox(width: 10),
-          CircleAvatar(backgroundColor: _iconColor, radius: 16),
-          SizedBox(width: 10),
-        ],
-      ),
-      body: _widgetOptions[_selectedIndex], // Use the selected widget
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: _fabColor,
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const AddPostScreen()),
-          );
-        },
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: BottomAppBar(
-        color: _bottomBarColor,
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 6.0,
-        child: SizedBox(
-          height: MediaQuery.of(context).size.height * 0.05,// Set a fixed height for the BottomAppBar
-          child: BottomNavigationBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            selectedItemColor: _selectedItemColor,
-            unselectedItemColor: _unselectedItemColor,
-            type: BottomNavigationBarType.fixed,
-            currentIndex: _selectedIndex,
-            onTap: _onItemTapped,
-            items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.search),
-                label: 'Search',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.notifications),
-                label: 'Notifications',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.person),
-                label: 'Profile',
-              ),
-            ],
+        backgroundColor: isDark ? Colors.grey[900] : const Color(0xFFB88C66),
+        title: ShaderMask(
+          shaderCallback: (bounds) => LinearGradient(
+            colors: isDark 
+                ? [Colors.white, Colors.white70]
+                : [Colors.white, Colors.white.withOpacity(0.8)],
+          ).createShader(bounds),
+          child: const Text(
+            'FRKTHREADS',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 24,
+            ),
           ),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              isDark ? Icons.light_mode : Icons.dark_mode,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+            onPressed: () => themeProvider.toggleTheme(),
+          ),
+          const SizedBox(width: 10),
+          CircleAvatar(
+            backgroundColor: isDark ? Colors.grey[800] : Colors.white,
+            radius: 16,
+          ),
+          const SizedBox(width: 10),
+        ],
+        elevation: 0,
+      ),      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 300),
+        child: _widgetOptions[_selectedIndex],
+      ),
+      floatingActionButton: ScaleTransition(
+        scale: _controller,
+        child: FloatingActionButton(
+          backgroundColor: isDark ? Colors.blue[700] : const Color(0xFF2D3B3A),
+          onPressed: () {
+            Navigator.push(
+              context,
+              PageRouteBuilder(              pageBuilder: (context, animation, secondaryAnimation) =>
+                    const AddPostScreen(),
+                transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(
+                      scale: Tween<double>(begin: 0.5, end: 1.0)
+                          .animate(CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      )),
+                      child: child,
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+          child: const Icon(Icons.add, color: Colors.white),
+        ),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,      bottomNavigationBar: CurvedNavigationBar(
+        backgroundColor: isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2),
+        color: isDark ? Colors.grey[900]! : const Color(0xFFB88C66),
+        buttonBackgroundColor: isDark ? Colors.blue[700] : const Color(0xFF2D3B3A),
+        height: 60,
+        animationDuration: const Duration(milliseconds: 300),
+        animationCurve: Curves.easeInOut,
+        index: _selectedIndex,
+        onTap: _onItemTapped,
+        letIndexChange: (index) => true,
+        items: <Widget>[
+          Icon(
+            Icons.home_rounded,
+            size: 30,
+            color: _selectedIndex == 0
+                ? Colors.white
+                : isDark
+                    ? Colors.white70
+                    : Colors.white,
+          ),
+          Icon(
+            Icons.search_rounded,
+            size: 30,
+            color: _selectedIndex == 1
+                ? Colors.white
+                : isDark
+                    ? Colors.white70
+                    : Colors.white,
+          ),
+          const SizedBox(width: 30), // Placeholder for FAB
+          Icon(
+            Icons.notifications_rounded,
+            size: 30,
+            color: _selectedIndex == 2
+                ? Colors.white
+                : isDark
+                    ? Colors.white70
+                    : Colors.white,
+          ),
+          Icon(
+            Icons.person_rounded,
+            size: 30,
+            color: _selectedIndex == 3
+                ? Colors.white
+                : isDark
+                    ? Colors.white70
+                    : Colors.white,
+          ),
+        ],
       ),
     );
   }
@@ -137,93 +215,181 @@ class PostListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     return StreamBuilder(
-      stream:
-          FirebaseFirestore.instance
-              .collection('posts')
-              .orderBy('createdAt', descending: true)
-              .snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('posts')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(
+            child: CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation(
+                isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+          );
         }
 
         final posts = snapshot.data!.docs;
 
-        return ListView.builder(
-          itemCount: posts.length,
-          itemBuilder: (context, index) {
-            final data = posts[index].data();
-            final imageBase64 = data['image'];
-            final description = data['description'];
-            final createdAtStr = data['createdAt'];
-            final fullName = data['fullName'] ?? 'Anonim';
+        return AnimationLimiter(
+          child: ListView.builder(
+            itemCount: posts.length,
+            itemBuilder: (context, index) {
+              final data = posts[index].data();
+              final imageBase64 = data['image'];
+              final description = data['description'];
+              final createdAtStr = data['createdAt'];
+              final fullName = data['fullName'] ?? 'Anonim';
 
-            DateTime createdAt;
-            if (createdAtStr is String) {
-              createdAt = DateTime.tryParse(createdAtStr) ?? DateTime.now();
-            } else if (createdAtStr is Timestamp) {
-              createdAt = createdAtStr.toDate();
-            } else {
-              createdAt = DateTime.now();
-            }
+              DateTime createdAt;
+              if (createdAtStr is String) {
+                createdAt = DateTime.tryParse(createdAtStr) ?? DateTime.now();
+              } else if (createdAtStr is Timestamp) {
+                createdAt = createdAtStr.toDate();
+              } else {
+                createdAt = DateTime.now();
+              }
 
-            return Card(
-              margin: const EdgeInsets.all(10),
-              color: Colors.white, // Using the consistent card color.
-              elevation: 2, // Added a small elevation for better appearance
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (imageBase64 != null)
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(10),
+              return AnimationConfiguration.staggeredList(
+                position: index,
+                duration: const Duration(milliseconds: 375),
+                child: SlideAnimation(
+                  verticalOffset: 50.0,
+                  child: FadeInAnimation(
+                    child: Card(
+                      margin: const EdgeInsets.all(10),
+                      color: isDark ? Colors.grey[850] : Colors.white,
+                      elevation: 4,
+                      shadowColor: Colors.black26,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
                       ),
-                      child: Image.memory(
-                        base64Decode(imageBase64),
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: 200,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (imageBase64 != null)
+                            Hero(
+                              tag: 'post_image_$index',
+                              child: ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(15),
+                                ),
+                                child: Image.memory(
+                                  base64Decode(imageBase64),
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  height: 200,
+                                ),
+                              ),
+                            ),
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: isDark 
+                                          ? Colors.grey[700] 
+                                          : Colors.grey[200],
+                                      radius: 20,
+                                      child: Text(
+                                        fullName[0].toUpperCase(),
+                                        style: TextStyle(
+                                          color: isDark 
+                                              ? Colors.white 
+                                              : Colors.black87,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          fullName,
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                            color: isDark 
+                                                ? Colors.white 
+                                                : Colors.black87,
+                                          ),
+                                        ),
+                                        Text(
+                                          formatTime(createdAt),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: isDark 
+                                                ? Colors.grey[400] 
+                                                : Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  description ?? '',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    color: isDark 
+                                        ? Colors.grey[300] 
+                                        : Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.favorite_border,
+                                        color: isDark 
+                                            ? Colors.grey[400] 
+                                            : Colors.grey[600],
+                                      ),
+                                      onPressed: () {},
+                                    ),
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.comment_outlined,
+                                        color: isDark 
+                                            ? Colors.grey[400] 
+                                            : Colors.grey[600],
+                                      ),
+                                      onPressed: () {},
+                                    ),
+                                    IconButton(
+                                      icon: Icon(
+                                        Icons.share_outlined,
+                                        color: isDark 
+                                            ? Colors.grey[400] 
+                                            : Colors.grey[600],
+                                      ),
+                                      onPressed: () {},
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          formatTime(createdAt),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        Text(
-                          fullName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          description ?? '',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
                     ),
                   ),
-                ],
-              ),
-            );
-          },
+                ),
+              );
+            },
+          ),
         );
       },
     );

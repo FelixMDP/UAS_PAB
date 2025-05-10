@@ -20,6 +20,12 @@ dependencies:
   google_maps_flutter: ^2.12.1 # Ensure this is included
   shimmer: ^3.0.0
   google_generative_ai: ^0.4.7
+  animated_text_kit: ^4.2.3
+  animations: ^2.0.11
+  flutter_staggered_animations: ^1.1.1
+  provider: ^6.1.5
+  shared_preferences: ^2.5.3
+  curved_navigation_bar: ^1.0.6
 
 dev_dependencies:
   flutter_test:

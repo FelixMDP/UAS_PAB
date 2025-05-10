@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -31,9 +32,10 @@ class _AddPostScreenState extends State<AddPostScreen> {
   double? _latitude;
   double? _longitude;
   String? _aiCategory;
-  String? _aiDescription;
   bool _isGenerating = false;
   GoogleMapController? _mapController;
+  Timer? _debounce;
+
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -42,11 +44,14 @@ class _AddPostScreenState extends State<AddPostScreen> {
         setState(() {
           _image = File(pickedFile.path);
           _aiCategory = null;
-          _aiDescription = null;
           _descriptionController.clear();
         });
         await _compressAndEncodeImage();
-        await _generateDescriptionWithAI();
+        final desc = _descriptionController.text.trim();
+if (desc.isNotEmpty) {
+  await _generateCategoryFromDescription(desc);
+}
+
       }
     } catch (e) {
       if (mounted) {
@@ -78,53 +83,47 @@ class _AddPostScreenState extends State<AddPostScreen> {
     }
   }
 
-  Future<void> _generateDescriptionWithAI() async {
-    if (_image == null) return;
-    setState(() => _isGenerating = true);
-    try {
-      final model = GenerativeModel(
-        model: 'gemini-1.5-pro',
-        apiKey: 'AIzaSyB_B3rjunORQJQKVLysNw7d80B8IgOsuCU',
-      );
+  Future<void> _generateCategoryFromDescription(String description) async {
+  setState(() => _isGenerating = true);
+  try {
+    final model = GenerativeModel(
+      model: 'gemini-1.5-pro',
+      apiKey: 'AIzaSyB_B3rjunORQJQKVLysNw7d80B8IgOsuCU',
+    );
 
-      final imageBytes = await _image!.readAsBytes();
-      final content = Content.multi([
-        DataPart('image/jpeg', imageBytes),
-        TextPart(
-          'Berdasarkan foto ini... [instruksi AI dipersingkat untuk kejelasan]',
-        ),
-      ]);
+    final prompt = '''
+Berdasarkan deskripsi berikut, tentukan kategori konten ini. Hanya jawab dengan satu kata kategori saja seperti: makanan, hewan, perjalanan, aktivitas, hiburan, teknologi, dll.
 
-      final response = await model.generateContent([content]);
-      final aiText = response.text;
+Deskripsi: "$description"
+Kategori:
+''';
 
-      if (aiText != null && aiText.isNotEmpty) {
-        final lines = aiText.trim().split('\n');
-        String? category;
-        String? description;
-        for (var line in lines) {
-          final lower = line.toLowerCase();
-          if (lower.startsWith('kategori:')) {
-            category = line.substring(9).trim();
-          } else if (lower.startsWith('deskripsi:') ||
-              lower.startsWith('keterangan:')) {
-            description = line.split(':')[1].trim();
-          }
-        }
+    final response = await model.generateContent([
+      Content.text(prompt),
+    ]);
 
-        description ??= aiText.trim();
-        setState(() {
-          _aiCategory = category ?? 'Tidak diketahui';
-          _aiDescription = description!;
-          _descriptionController.text = _aiDescription!;
-        });
-      }
-    } catch (e) {
-      debugPrint('Failed to generate AI description: $e');
-    } finally {
-      if (mounted) setState(() => _isGenerating = false);
+    final result = response.text?.trim().toLowerCase();
+    if (result != null && result.isNotEmpty) {
+      setState(() {
+        _aiCategory = result;
+      });
+    } else {
+      setState(() {
+        _aiCategory = 'tidak diketahui';
+      });
     }
+  } catch (e) {
+    debugPrint('Failed to determine category: $e');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal mendapatkan kategori dari AI.')),
+      );
+    }
+  } finally {
+    if (mounted) setState(() => _isGenerating = false);
   }
+}
+
 
   Future<void> _getLocation() async {
     try {
@@ -370,16 +369,25 @@ class _AddPostScreenState extends State<AddPostScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   TextField(
-                    controller: _descriptionController,
-                    textCapitalization: TextCapitalization.sentences,
-                    maxLines: 6,
-                    decoration: InputDecoration(
-                      hintText: 'Add a brief description...',
-                      filled: true,
-                      fillColor: AddPostScreen._card,
-                      border: const OutlineInputBorder(),
-                    ),
-                  ),
+  controller: _descriptionController,
+  textCapitalization: TextCapitalization.sentences,
+  maxLines: 6,
+   onEditingComplete: () {
+    final desc = _descriptionController.text.trim();
+    if (desc.isNotEmpty) {
+      _generateCategoryFromDescription(desc);
+    }
+  },
+
+
+  decoration: InputDecoration(
+    hintText: 'Tambahkan deskripsi aktivitasmu...',
+    filled: true,
+    fillColor: AddPostScreen._card,
+    border: const OutlineInputBorder(),
+  ),
+),
+
                 ],
               ),
             ),
@@ -416,6 +424,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
   @override
   void dispose() {
     _descriptionController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 }

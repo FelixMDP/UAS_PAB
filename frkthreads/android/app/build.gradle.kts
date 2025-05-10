@@ -11,11 +11,7 @@ plugins {
 android {
     namespace = "com.example.frkthreads"
     compileSdk = flutter.compileSdkVersion
-<<<<<<< HEAD
     ndkVersion = "27.0.12077973"
-=======
-    ndkVersion = "27.0.12077973"  // Update NDK version here
->>>>>>> ecd8fdc24fa9bdb029be14a9eb0fe37ed824eb43
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

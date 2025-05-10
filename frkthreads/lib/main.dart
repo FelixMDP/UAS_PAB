@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:frkthreads/screens/homescreen.dart';
 import 'package:frkthreads/screens/splashscreen.dart';
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
@@ -28,7 +29,7 @@ class MainApp extends StatelessWidget {
           theme: themeProvider.lightTheme,
           darkTheme: themeProvider.darkTheme,
           themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-          home: const SplashScreen(),
+          home: const HomeScreen(),
           debugShowCheckedModeBanner: false,
           // Add page transition animations
           onGenerateRoute: (settings) {

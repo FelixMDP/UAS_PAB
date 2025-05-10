@@ -24,6 +24,25 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   int _selectedIndex = 0;
   late AnimationController _controller;
 
+  // Helper to map _selectedIndex (0-3) to CurvedNavigationBar index (0-4)
+  int _mapSelectedIndexToNavBarIndex(int selectedIndex) {
+    if (selectedIndex >= 2) {
+      return selectedIndex + 1; // skip placeholder at index 2
+    }
+    return selectedIndex;
+  }
+
+  // Helper to map CurvedNavigationBar index (0-4) to _selectedIndex (0-3)
+  int _mapNavBarIndexToSelectedIndex(int navBarIndex) {
+    if (navBarIndex > 2) {
+      return navBarIndex - 1; // skip placeholder at index 2
+    } else if (navBarIndex == 2) {
+      // Placeholder tapped, ignore or keep current index
+      return _selectedIndex;
+    }
+    return navBarIndex;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -47,10 +66,10 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     const ProfileScreen(),
   ];
   void _onItemTapped(int index) {
-    // Menyesuaikan indeks karena ada placeholder untuk FAB
-    if (index > 1) index--; // Mengompensasi placeholder FAB
+    // Map tapped index to _selectedIndex ignoring placeholder
+    final mappedIndex = _mapNavBarIndexToSelectedIndex(index);
     setState(() {
-      _selectedIndex = index;
+      _selectedIndex = mappedIndex;
     });
   }
 
@@ -107,7 +126,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           const SizedBox(width: 10),
         ],
         elevation: 0,
-      ),      body: AnimatedSwitcher(
+      ),      
+      body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
         child: _widgetOptions[_selectedIndex],
       ),
@@ -146,9 +166,9 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         height: 60,
         animationDuration: const Duration(milliseconds: 300),
         animationCurve: Curves.easeInOut,
-        index: _selectedIndex,
+        index: _mapSelectedIndexToNavBarIndex(_selectedIndex),
         onTap: _onItemTapped,
-        letIndexChange: (index) => true,
+        letIndexChange: (index) => index != 2,
         items: <Widget>[
           Icon(
             Icons.home_rounded,
@@ -384,7 +404,7 @@ class PostListView extends StatelessWidget {
                           ),
                         ],
                       ),
-                    ),
+                    ),  
                   ),
                 ),
               );

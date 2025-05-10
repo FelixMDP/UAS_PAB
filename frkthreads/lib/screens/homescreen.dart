@@ -8,6 +8,7 @@ import 'searchscreen.dart';
 import 'notificationscreen.dart';
 import 'profilescreen.dart';
 import 'signinscreen.dart';
+import 'postdetailscreen.dart'; // Import the new PostDetailScreen
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -83,8 +84,8 @@ class _HomeScreenState extends State<HomeScreen> {
         color: _bottomBarColor,
         shape: const CircularNotchedRectangle(),
         notchMargin: 6.0,
-        child: SizedBox(
-          height: 60, // Set a fixed height for the BottomAppBar
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 8),
           child: BottomNavigationBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
@@ -168,59 +169,100 @@ class PostListView extends StatelessWidget {
               createdAt = DateTime.now();
             }
 
-            return Card(
-              margin: const EdgeInsets.all(10),
-              color: Colors.white, // Using the consistent card color.
-              elevation: 2, // Added a small elevation for better appearance
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (imageBase64 != null)
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(10),
-                      ),
-                      child: Image.memory(
-                        base64Decode(imageBase64),
-                        fit: BoxFit.cover,
-                        width: double.infinity,
-                        height: 200,
-                      ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          formatTime(createdAt),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        Text(
-                          fullName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          description ?? '',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                      ],
-                    ),
+            return GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (context) => PostDetailScreen(postId: posts[index].id),
                   ),
-                ],
+                );
+              },
+              child: Card(
+                margin: const EdgeInsets.all(10),
+                color: Colors.white, // Using the consistent card color.
+                elevation: 2, // Added a small elevation for better appearance
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (imageBase64 != null)
+                      ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(10),
+                        ),
+                        child: Image.memory(
+                          base64Decode(imageBase64),
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: 200,
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            formatTime(createdAt),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          Text(
+                            fullName,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            description ?? '',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.thumb_up),
+                                onPressed: () {
+                                  FirebaseFirestore.instance
+                                      .collection('posts')
+                                      .doc(posts[index].id)
+                                      .update({
+                                        'likes': FieldValue.increment(1),
+                                      });
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.comment),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder:
+                                          (context) => PostDetailScreen(
+                                            postId: posts[index].id,
+                                          ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },

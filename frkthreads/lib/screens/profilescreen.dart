@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -271,6 +274,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _bioCtrl = TextEditingController();
   bool _isSaving = false;
   final _uid = FirebaseAuth.instance.currentUser?.uid;
+  File? _imageFile;
+  String? _base64Image;
+  final ImagePicker _picker = ImagePicker();
+  String? _existingPhotoUrl;
 
   @override
   void initState() {
@@ -279,33 +286,185 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadUserData() async {
-    final doc =
-        await FirebaseFirestore.instance.collection('users').doc(_uid).get();
-    final data = doc.data();
-    if (data != null) {
-      _fullNameCtrl.text = data['fullName'] ?? '';
-      _bioCtrl.text = data['bio'] ?? '';
+    try {
+      final doc =
+          await FirebaseFirestore.instance.collection('users').doc(_uid).get();
+      final data = doc.data();
+      if (data != null) {
+        setState(() {
+          _fullNameCtrl.text = data['fullName'] ?? '';
+          _bioCtrl.text = data['bio'] ?? '';
+          _existingPhotoUrl = data['photoUrl'];
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading user data: $e');
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final pickedFile = await _picker.pickImage(source: source);
+      if (pickedFile != null) {
+        setState(() {
+          _imageFile = File(pickedFile.path);
+        });
+        await _compressAndEncodeImage();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+      }
+    }
+  }
+
+  Future<void> _compressAndEncodeImage() async {
+    if (_imageFile == null) return;
+    try {
+      final compressedImage = await FlutterImageCompress.compressWithFile(
+        _imageFile!.path,
+        quality: 50,
+      );
+      if (compressedImage == null) return;
+      setState(() {
+        _base64Image = base64Encode(compressedImage);
+      });
+    } catch (e) {
+      debugPrint('Error compressing image: $e');
+    }
+  }
+
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take a picture'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from gallery'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<String?> _uploadProfilePicture() async {
+    try {
+      if (_base64Image == null) return null;
+
+      // Store the base64 image directly in user document
+      await FirebaseFirestore.instance.collection('users').doc(_uid).update({
+        'photoUrl': _base64Image,
+      });
+
+      return _base64Image;
+    } catch (e) {
+      debugPrint('Error uploading profile picture: $e');
+      return null;
     }
   }
 
   Future<void> _saveProfile() async {
     setState(() => _isSaving = true);
-    await FirebaseFirestore.instance.collection('users').doc(_uid).update({
-      'fullName': _fullNameCtrl.text.trim(),
-      'bio': _bioCtrl.text.trim(),
-    });
-    if (!mounted) return;
-    Navigator.pop(context);
+    try {
+      String? photoUrl = await _uploadProfilePicture();
+
+      final updateData = {
+        'fullName': _fullNameCtrl.text.trim(),
+        'bio': _bioCtrl.text.trim(),
+      };
+
+      if (photoUrl != null) {
+        updateData['photoUrl'] = photoUrl;
+      }
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_uid)
+          .update(updateData);
+
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated successfully')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error updating profile: $e')));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Widget _buildProfileImage() {
+    if (_imageFile != null) {
+      return CircleAvatar(radius: 50, backgroundImage: FileImage(_imageFile!));
+    } else if (_existingPhotoUrl != null) {
+      return CircleAvatar(
+        radius: 50,
+        backgroundImage: MemoryImage(base64Decode(_existingPhotoUrl!)),
+        child: Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.edit, size: 20),
+                onPressed: _showImageSourceDialog,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return CircleAvatar(
+        radius: 50,
+        backgroundColor: Colors.grey[300],
+        child: IconButton(
+          icon: const Icon(Icons.camera_alt, size: 30, color: Colors.grey),
+          onPressed: _showImageSourceDialog,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Edit Profile')),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            GestureDetector(
+              onTap: _showImageSourceDialog,
+              child: _buildProfileImage(),
+            ),
+            const SizedBox(height: 24),
             TextField(
               controller: _fullNameCtrl,
               decoration: const InputDecoration(labelText: 'Full Name'),
@@ -314,14 +473,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             TextField(
               controller: _bioCtrl,
               decoration: const InputDecoration(labelText: 'Bio'),
+              maxLines: 3,
             ),
-            const Spacer(),
+            const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _isSaving ? null : _saveProfile,
               child:
                   _isSaving
                       ? const CircularProgressIndicator()
-                      : const Text('Save'),
+                      : const Text('Save Changes'),
             ),
           ],
         ),

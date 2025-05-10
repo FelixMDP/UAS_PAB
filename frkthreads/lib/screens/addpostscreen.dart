@@ -34,6 +34,20 @@ class _AddPostScreenState extends State<AddPostScreen> {
   String? _aiDescription;
   bool _isGenerating = false;
   GoogleMapController? _mapController;
+  BitmapDescriptor? customMarker;
+
+  @override
+  void initState() {
+    super.initState();
+    _createCustomMarker();
+  }
+
+  Future<void> _createCustomMarker() async {
+    customMarker = await BitmapDescriptor.fromAssetImage(
+      const ImageConfiguration(size: Size(48, 48)),
+      'assets/images/location_marker.png',
+    );
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -193,7 +207,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final fullName = userDoc.data()?['fullName'] ?? 'Anonymous';
 
-      await FirebaseFirestore.instance.collection('posts').add({
+      final postRef = await FirebaseFirestore.instance.collection('posts').add({
         'image': _base64Image,
         'description': _descriptionController.text,
         'category': _aiCategory ?? 'Tidak diketahui',
@@ -202,6 +216,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
         'longitude': _longitude,
         'fullName': fullName,
         'userId': uid,
+        'likes': 0, // Initialize likes field
+        'comments': [], // Initialize comments field
+        'savedBy': [], // Initialize savedBy field
       });
 
       if (!mounted) return;
@@ -271,22 +288,38 @@ class _AddPostScreenState extends State<AddPostScreen> {
         ),
       );
     }
-    return SizedBox(
+    return Container(
       height: 200,
-      child: GoogleMap(
-        initialCameraPosition: CameraPosition(
-          target: LatLng(_latitude!, _longitude!),
-          zoom: 15,
-        ),
-        markers: {
-          Marker(
-            markerId: const MarkerId('currentLocation'),
-            position: LatLng(_latitude!, _longitude!),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: GoogleMap(
+          initialCameraPosition: CameraPosition(
+            target: LatLng(_latitude!, _longitude!),
+            zoom: 15,
           ),
-        },
-        onMapCreated: (controller) {
-          _mapController = controller;
-        },
+          markers: {
+            Marker(
+              markerId: const MarkerId('currentLocation'),
+              position: LatLng(_latitude!, _longitude!),
+              icon: customMarker ?? BitmapDescriptor.defaultMarker,
+              infoWindow: InfoWindow(
+                title: 'Current Location',
+                snippet: '$_latitude, $_longitude',
+              ),
+            ),
+          },
+          mapType: MapType.normal,
+          zoomControlsEnabled: true,
+          myLocationEnabled: true,
+          myLocationButtonEnabled: true,
+          onMapCreated: (controller) {
+            _mapController = controller;
+          },
+        ),
       ),
     );
   }

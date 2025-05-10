@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:frkthreads/screens/homescreen.dart';
+import 'package:frkthreads/screens/homescreen.dart';
 import 'package:frkthreads/screens/splashscreen.dart';
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';

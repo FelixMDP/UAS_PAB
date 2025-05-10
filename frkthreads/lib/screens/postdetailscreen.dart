@@ -6,7 +6,9 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import 'full_image_screen.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class DetailScreen extends StatefulWidget {
   final String imageBase64;
@@ -41,11 +43,43 @@ class _DetailScreenState extends State<DetailScreen> {
   List<String> comments = [];
   int likes = 0;
   bool isLiked = false;
+  Timer? _timer;
+  String _timeAgo = '';
+  bool isPostOwner = false;
 
   @override
   void initState() {
     super.initState();
     _fetchPostDetails();
+    _updateTimeAgo();
+    _checkPostOwnership();
+    // Update time every minute
+    _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      _updateTimeAgo();
+    });
+  }
+
+  void _updateTimeAgo() {
+    setState(() {
+      _timeAgo = _formatTimeAgo(widget.createdAt);
+    });
+  }
+
+  String _formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return DateFormat('dd MMM yyyy, HH:mm').format(dateTime);
+    }
   }
 
   Future<void> _fetchPostDetails() async {
@@ -99,6 +133,24 @@ class _DetailScreenState extends State<DetailScreen> {
         });
       }
 
+      // Add notification
+      final postData = doc.data() as Map<String, dynamic>;
+      final postOwnerId = postData['userId'];
+
+      if (postOwnerId != FirebaseAuth.instance.currentUser?.uid) {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'type': 'like',
+          'fromUserId': FirebaseAuth.instance.currentUser?.uid,
+          'fromUserName':
+              FirebaseAuth.instance.currentUser?.displayName ?? 'Anonymous',
+          'toUserId': postOwnerId,
+          'postId': widget.postId,
+          'description': 'liked your post',
+          'createdAt': FieldValue.serverTimestamp(),
+          'isRead': false,
+        });
+      }
+
       _fetchPostDetails();
     } catch (e) {
       debugPrint('Error toggling like: $e');
@@ -115,6 +167,29 @@ class _DetailScreenState extends State<DetailScreen> {
           .update({
             'comments': FieldValue.arrayUnion([_commentController.text.trim()]),
           });
+
+      // Add notification
+      final postRef = FirebaseFirestore.instance
+          .collection('posts')
+          .doc(widget.postId);
+      final doc = await postRef.get();
+      final postData = doc.data() as Map<String, dynamic>;
+      final postOwnerId = postData['userId'];
+
+      if (postOwnerId != FirebaseAuth.instance.currentUser?.uid) {
+        await FirebaseFirestore.instance.collection('notifications').add({
+          'type': 'comment',
+          'fromUserId': FirebaseAuth.instance.currentUser?.uid,
+          'fromUserName':
+              FirebaseAuth.instance.currentUser?.displayName ?? 'Anonymous',
+          'toUserId': postOwnerId,
+          'postId': widget.postId,
+          'description':
+              'commented on your post: ${_commentController.text.trim()}',
+          'createdAt': FieldValue.serverTimestamp(),
+          'isRead': false,
+        });
+      }
 
       _commentController.clear();
       _fetchPostDetails();
@@ -133,6 +208,167 @@ class _DetailScreenState extends State<DetailScreen> {
         const SnackBar(content: Text('Tidak bisa membuka Google Maps')),
       );
     }
+  }
+
+  void _showMapBottomSheet() {
+    if (widget.latitude == 0.0 || widget.longitude == 0.0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location not available for this post')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder:
+          (context) => Container(
+            height: MediaQuery.of(context).size.height * 0.7,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Post Location',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: GoogleMap(
+                      initialCameraPosition: CameraPosition(
+                        target: LatLng(widget.latitude, widget.longitude),
+                        zoom: 15,
+                      ),
+                      markers: {
+                        Marker(
+                          markerId: const MarkerId('postLocation'),
+                          position: LatLng(widget.latitude, widget.longitude),
+                          infoWindow: InfoWindow(title: widget.fullName),
+                        ),
+                      },
+                      mapType: MapType.normal,
+                      zoomControlsEnabled: true,
+                      myLocationEnabled: true,
+                      myLocationButtonEnabled: true,
+                      compassEnabled: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on, color: Colors.red),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Posted by ${widget.fullName}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            DateFormat(
+                              'dd MMMM yyyy, HH:mm',
+                            ).format(widget.createdAt),
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.directions),
+                      label: const Text('Directions'),
+                      onPressed: () => _openInGoogleMaps(),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Future<void> _openInGoogleMaps() async {
+    final url = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=${widget.latitude},${widget.longitude}',
+    );
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open Google Maps')),
+        );
+      }
+    }
+  }
+
+  Future<void> _checkPostOwnership() async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final doc =
+        await FirebaseFirestore.instance
+            .collection('posts')
+            .doc(widget.postId)
+            .get();
+
+    if (doc.exists && mounted) {
+      setState(() {
+        isPostOwner = doc.data()?['userId'] == currentUserId;
+      });
+    }
+  }
+
+  Future<void> _deletePost() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('posts')
+          .doc(widget.postId)
+          .delete();
+
+      if (mounted) {
+        Navigator.pop(context); // Return to previous screen
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Post deleted successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error deleting post: $e')));
+      }
+    }
+  }
+
+  void _showDeleteConfirmation() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Post'),
+          content: const Text('Are you sure you want to delete this post?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _deletePost();
+              },
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Widget _buildCommentSection() {
@@ -201,45 +437,72 @@ class _DetailScreenState extends State<DetailScreen> {
     ).format(widget.createdAt);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Detail Postingan')),
+      appBar: AppBar(
+        title: Text(_timeAgo),
+        actions: [
+          if (isPostOwner)
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: _showDeleteConfirmation,
+            ),
+        ],
+      ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              children: [
-                Hero(
-                  tag: widget.heroTag,
-                  child: Image.memory(
-                    base64Decode(widget.imageBase64),
-                    width: double.infinity,
-                    height: 250,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  child: IconButton(
-                    icon: const Icon(Icons.fullscreen, color: Colors.white),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder:
-                              (_) => FullscreenImageScreen(
-                                imageBase64: widget.imageBase64,
-                              ),
-                        ),
-                      );
-                    },
-                    tooltip: 'Lihat gambar penuh',
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.black45,
+            GestureDetector(
+              onTap:
+                  () =>
+                      widget.latitude != 0.0 && widget.longitude != 0.0
+                          ? _showMapBottomSheet()
+                          : null,
+              child: Stack(
+                children: [
+                  Hero(
+                    tag: widget.heroTag,
+                    child: Image.memory(
+                      base64Decode(widget.imageBase64),
+                      width: double.infinity,
+                      height: 250,
+                      fit: BoxFit.cover,
                     ),
                   ),
-                ),
-              ],
+                  if (widget.latitude != 0.0 && widget.longitude != 0.0)
+                    Positioned(
+                      bottom: 16,
+                      right: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: const [
+                            Icon(
+                              Icons.location_on,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'View Location',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -353,6 +616,7 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   void dispose() {
     _commentController.dispose();
+    _timer?.cancel();
     super.dispose();
   }
 }

@@ -84,7 +84,7 @@ class _HomeScreenState extends State<HomeScreen> {
         shape: const CircularNotchedRectangle(),
         notchMargin: 6.0,
         child: SizedBox(
-          height: 60, // Set a fixed height for the BottomAppBar
+          height: MediaQuery.of(context).size.height * 0.05,// Set a fixed height for the BottomAppBar
           child: BottomNavigationBar(
             backgroundColor: Colors.transparent,
             elevation: 0,

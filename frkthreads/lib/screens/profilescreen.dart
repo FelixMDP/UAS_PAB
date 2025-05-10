@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -190,26 +191,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
               .orderBy('createdAt', descending: true)
               .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) {
-          return const Center(
+        if (snapshot.hasError) {
+          return Center(
             child: Text(
-              'No threads yet.',
-              style: TextStyle(color: Colors.white),
+              'Error: ${snapshot.error}',
+              style: TextStyle(color: _textLight),
             ),
           );
         }
+
+        if (!snapshot.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(color: _textLight),
+          );
+        }
+
+        final posts = snapshot.data!.docs;
+        if (posts.isEmpty) {
+          return const Center(
+            child: Text('No posts yet', style: TextStyle(color: _textLight)),
+          );
+        }
+
         return ListView.builder(
-          itemCount: docs.length,
+          itemCount: posts.length,
           itemBuilder: (context, index) {
-            final data = docs[index].data() as Map<String, dynamic>;
-            final caption = data['caption'] ?? '';
-            return ListTile(
-              leading: const Icon(Icons.circle, color: _textLight),
-              title: Text(caption, style: const TextStyle(color: _textLight)),
+            final post = posts[index].data() as Map<String, dynamic>;
+            return Card(
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              color: _card,
+              child: ListTile(
+                title: Text(
+                  post['description'] ?? '',
+                  style: const TextStyle(color: _textDark),
+                ),
+                subtitle: Text(
+                  _formatDate(post['createdAt']),
+                  style: TextStyle(color: _textDark.withOpacity(0.6)),
+                ),
+                leading:
+                    post['image'] != null
+                        ? CircleAvatar(
+                          backgroundImage: MemoryImage(
+                            base64Decode(post['image']),
+                          ),
+                        )
+                        : const CircleAvatar(child: Icon(Icons.article)),
+              ),
             );
           },
         );
@@ -223,37 +251,94 @@ class _ProfileScreenState extends State<ProfileScreen> {
           FirebaseFirestore.instance
               .collection('posts')
               .where('userId', isEqualTo: _uid)
+              .where('image', isNull: false) // Only get posts with images
               .orderBy('createdAt', descending: true)
               .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final docs = snapshot.data!.docs;
-        if (docs.isEmpty) {
-          return const Center(
-            child: Text('No media yet.', style: TextStyle(color: Colors.white)),
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Error: ${snapshot.error}',
+              style: TextStyle(color: _textLight),
+            ),
           );
         }
+
+        if (!snapshot.hasData) {
+          return const Center(
+            child: CircularProgressIndicator(color: _textLight),
+          );
+        }
+
+        final posts = snapshot.data!.docs;
+        if (posts.isEmpty) {
+          return const Center(
+            child: Text('No media yet', style: TextStyle(color: _textLight)),
+          );
+        }
+
         return GridView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.all(8),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
             crossAxisSpacing: 4,
             mainAxisSpacing: 4,
           ),
-          itemCount: docs.length,
+          itemCount: posts.length,
           itemBuilder: (context, index) {
-            final data = docs[index].data() as Map<String, dynamic>;
-            final imageBase64 = data['image'] as String?;
+            final post = posts[index].data() as Map<String, dynamic>;
+            final imageBase64 = post['image'] as String?;
             if (imageBase64 == null) return const SizedBox.shrink();
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Image.memory(base64Decode(imageBase64), fit: BoxFit.cover),
+
+            return InkWell(
+              onTap: () => _showFullImage(context, imageBase64),
+              child: Hero(
+                tag: 'media_$index',
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    image: DecorationImage(
+                      image: MemoryImage(base64Decode(imageBase64)),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ),
             );
           },
         );
       },
+    );
+  }
+
+  String _formatDate(dynamic date) {
+    if (date == null) return '';
+    if (date is Timestamp) {
+      return DateFormat('dd MMM yyyy').format(date.toDate());
+    }
+    if (date is String) {
+      return DateFormat('dd MMM yyyy').format(DateTime.parse(date));
+    }
+    return '';
+  }
+
+  void _showFullImage(BuildContext context, String imageBase64) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder:
+            (context) => Scaffold(
+              backgroundColor: Colors.black,
+              body: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Center(
+                  child: InteractiveViewer(
+                    child: Image.memory(base64Decode(imageBase64)),
+                  ),
+                ),
+              ),
+            ),
+      ),
     );
   }
 }

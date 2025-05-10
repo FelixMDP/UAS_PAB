@@ -149,9 +149,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
+        desiredAccuracy: LocationAccuracy.high,
       ).timeout(const Duration(seconds: 10));
 
       setState(() {
@@ -175,50 +173,53 @@ class _AddPostScreenState extends State<AddPostScreen> {
     }
 
     setState(() => _isUploading = true);
-    final now = DateTime.now().toIso8601String();
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-
-    if (uid == null) {
-      setState(() => _isUploading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('User not found. Please sign in.')),
-      );
-      return;
-    }
 
     try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) {
+        throw Exception('User not found');
+      }
+
       await _getLocation();
 
       final userDoc =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final fullName = userDoc.data()?['fullName'] ?? 'Anonymous';
 
-      await FirebaseFirestore.instance.collection('posts').add({
+      final postData = {
         'image': _base64Image,
         'description': _descriptionController.text,
         'category': _aiCategory ?? 'Tidak diketahui',
-        'createdAt': now,
+        'createdAt': DateTime.now().toIso8601String(),
         'latitude': _latitude,
         'longitude': _longitude,
         'fullName': fullName,
         'userId': uid,
-      });
+        'likes': 0,
+        'likedBy': [],
+        'comments': [],
+        'commentDetails': [],
+      };
+
+      await FirebaseFirestore.instance.collection('posts').add(postData);
 
       if (!mounted) return;
-      Navigator.pushReplacement(
+
+      // Replace current screen with HomeScreen
+      Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),
+        (route) => false,
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Post uploaded successfully!')),
       );
     } catch (e) {
-      debugPrint('Upload failed: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to upload the post: $e')));
+      ).showSnackBar(SnackBar(content: Text('Failed to upload: $e')));
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }

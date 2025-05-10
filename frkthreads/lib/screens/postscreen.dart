@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class PostScreen extends StatefulWidget {
   final String postId;
@@ -21,16 +23,29 @@ class _PostScreenState extends State<PostScreen> {
   BitmapDescriptor? customMarker;
   double? _latitude;
   double? _longitude;
-  bool isLiked = false; // Tambahkan variabel isLiked
+  bool isLiked = false; // Track like status
   bool isSubmittingComment = false;
   bool isSubmittingLike = false;
+
+  GoogleMapController? _mapController;
+  bool _isMapReady = false;
+  Set<Marker> _markers = {};
 
   @override
   void initState() {
     super.initState();
-    _getLocation(); // Get location when screen loads
-    _fetchPost();
-    _createCustomMarker();
+    _initializePost();
+  }
+
+  Future<void> _initializePost() async {
+    await _getLocation();
+    await _fetchPost();
+    await _createCustomMarker();
+    if (mounted) {
+      setState(() {
+        _isMapReady = true;
+      });
+    }
   }
 
   Future<void> _getLocation() async {
@@ -100,32 +115,28 @@ class _PostScreenState extends State<PostScreen> {
 
       if (!doc.exists) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Post not found')));
+          _showError('Post not found');
           Navigator.pop(context);
         }
         return;
       }
 
-      // Get current user ID
       final uid = FirebaseAuth.instance.currentUser?.uid;
       final data = doc.data()!;
       final likedBy = List<String>.from(data['likedBy'] ?? []);
+      final commentDetails = List<Map<String, dynamic>>.from(
+        data['commentDetails'] ?? [],
+      );
 
       setState(() {
         post = doc;
         isLoading = false;
-        isLiked =
-            uid != null &&
-            likedBy.contains(uid); // Set status like berdasarkan array likedBy
+        isLiked = uid != null && likedBy.contains(uid);
       });
     } catch (e) {
       debugPrint('Error fetching post: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Error loading post')));
+        _showError('Error loading post');
         Navigator.pop(context);
       }
     }
@@ -170,7 +181,7 @@ class _PostScreenState extends State<PostScreen> {
         });
       }
 
-      _fetchPost(); // Refresh post data
+      _fetchPost(); // Refresh data
     } catch (e) {
       debugPrint('Error toggling like: $e');
     } finally {
@@ -179,15 +190,17 @@ class _PostScreenState extends State<PostScreen> {
   }
 
   Future<void> _addComment(String comment) async {
-    if (isSubmittingComment) return;
-    setState(() => isSubmittingComment = true);
+    if (isSubmittingComment || comment.trim().isEmpty) return;
+
     try {
-      if (comment.trim().isEmpty) return;
-
       final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) return;
+      if (uid == null) {
+        _showError('Please sign in to comment');
+        return;
+      }
 
-      // Get user's name
+      setState(() => isSubmittingComment = true);
+
       final userDoc =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final userName = userDoc.data()?['fullName'] ?? 'Anonymous';
@@ -203,14 +216,13 @@ class _PostScreenState extends State<PostScreen> {
           .collection('posts')
           .doc(widget.postId)
           .update({
-            'comments': FieldValue.arrayUnion([comment.trim()]),
             'commentDetails': FieldValue.arrayUnion([commentData]),
           });
 
       _commentController.clear();
       _fetchPost();
     } catch (e) {
-      debugPrint('Error adding comment: $e');
+      _showError('Error adding comment: $e');
     } finally {
       if (mounted) setState(() => isSubmittingComment = false);
     }
@@ -242,7 +254,10 @@ class _PostScreenState extends State<PostScreen> {
   }
 
   Widget _buildLocationSection(double? latitude, double? longitude) {
-    if (latitude == null || longitude == null) {
+    if (latitude == null ||
+        longitude == null ||
+        latitude == 0.0 ||
+        longitude == 0.0) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: Card(
@@ -252,7 +267,7 @@ class _PostScreenState extends State<PostScreen> {
               children: const [
                 Icon(Icons.location_off),
                 SizedBox(width: 8),
-                Text('Location not available'),
+                Text('Location not available for this post'),
               ],
             ),
           ),
@@ -260,18 +275,18 @@ class _PostScreenState extends State<PostScreen> {
       );
     }
 
-    try {
-      return Container(
-        height: 200,
-        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey[300]!),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: Stack(
-            children: [
+    return Container(
+      height: 200,
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            if (_isMapReady)
               GoogleMap(
                 initialCameraPosition: CameraPosition(
                   target: LatLng(latitude, longitude),
@@ -285,30 +300,43 @@ class _PostScreenState extends State<PostScreen> {
                     infoWindow: const InfoWindow(title: 'Post Location'),
                   ),
                 },
+                onMapCreated: (GoogleMapController controller) {
+                  _mapController = controller;
+                },
                 mapType: MapType.normal,
                 zoomControlsEnabled: true,
                 myLocationEnabled: true,
                 myLocationButtonEnabled: true,
                 compassEnabled: true,
+              )
+            else
+              const Center(child: CircularProgressIndicator()),
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: FloatingActionButton.small(
+                onPressed: () => _openInGoogleMaps(latitude, longitude),
+                child: const Icon(Icons.directions),
               ),
-              Positioned(
-                bottom: 16,
-                right: 16,
-                child: FloatingActionButton.small(
-                  onPressed: _getLocation,
-                  child: const Icon(Icons.my_location),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-      );
-    } catch (e) {
-      debugPrint('Error building map: $e');
-      return const Padding(
-        padding: EdgeInsets.all(16.0),
-        child: Text('Error loading map'),
-      );
+      ),
+    );
+  }
+
+  Future<void> _openInGoogleMaps(double latitude, double longitude) async {
+    final url = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=$latitude,$longitude',
+    );
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open Google Maps')),
+        );
+      }
     }
   }
 
@@ -330,6 +358,223 @@ class _PostScreenState extends State<PostScreen> {
     );
   }
 
+  Widget _buildInteractionButtons(Map<String, dynamic> data) {
+    final likes = data['likes'] ?? 0;
+    final comments = List<String>.from(data['comments'] ?? []);
+    final isLiked = (data['likedBy'] ?? []).contains(
+      FirebaseAuth.instance.currentUser?.uid,
+    );
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.start,
+      children: [
+        IconButton(
+          icon: Icon(
+            isLiked ? Icons.favorite : Icons.favorite_border,
+            color: isLiked ? Colors.red : null,
+          ),
+          onPressed: _toggleLike,
+        ),
+        Text('$likes'),
+        const SizedBox(width: 16),
+        IconButton(
+          icon: const Icon(Icons.comment_outlined),
+          onPressed: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              builder:
+                  (context) => _buildCommentsSheet(
+                    comments.cast<Map<String, dynamic>>(),
+                  ),
+            );
+          },
+        ),
+        Text('${comments.length}'),
+        const SizedBox(width: 16),
+        IconButton(
+          icon: const Icon(Icons.location_on),
+          onPressed: () => _showLocationMap(data),
+        ),
+      ],
+    );
+  }
+
+  void _showLocationMap(Map<String, dynamic> data) {
+    final latitude = data['latitude'] as double?;
+    final longitude = data['longitude'] as double?;
+
+    if (latitude == null ||
+        longitude == null ||
+        latitude == 0.0 ||
+        longitude == 0.0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Location is not available for this post'),
+        ),
+      );
+      return;
+    }
+
+    if (!_isMapReady) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Map is still loading...')));
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder:
+          (context) => Container(
+            height: MediaQuery.of(context).size.height * 0.7,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Post Location',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.directions),
+                      label: const Text('Directions'),
+                      onPressed: () => _openInGoogleMaps(latitude, longitude),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: GoogleMap(
+                    initialCameraPosition: CameraPosition(
+                      target: LatLng(latitude, longitude),
+                      zoom: 15,
+                    ),
+                    markers: {
+                      Marker(
+                        markerId: const MarkerId('postLocation'),
+                        position: LatLng(latitude, longitude),
+                        infoWindow: InfoWindow(
+                          title: 'Post Location',
+                          snippet:
+                              '${latitude.toStringAsFixed(6)}, ${longitude.toStringAsFixed(6)}',
+                        ),
+                      ),
+                    },
+                    mapType: MapType.normal,
+                    zoomControlsEnabled: true,
+                    myLocationEnabled: true,
+                    myLocationButtonEnabled: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Widget _buildCommentsSheet(List<Map<String, dynamic>> commentDetails) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Comments (${commentDetails.length})',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Flexible(
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: commentDetails.length,
+              itemBuilder: (context, index) {
+                final comment = commentDetails[index];
+                return ListTile(
+                  leading: const CircleAvatar(child: Icon(Icons.person)),
+                  title: Text(comment['userName'] ?? 'Anonymous'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(comment['text']),
+                      Text(
+                        _formatTime(DateTime.parse(comment['createdAt'])),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+              top: 8,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _commentController,
+                    decoration: InputDecoration(
+                      hintText: 'Add a comment...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon:
+                      isSubmittingComment
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Icon(Icons.send),
+                  onPressed:
+                      isSubmittingComment
+                          ? null
+                          : () => _addComment(_commentController.text),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(DateTime time) {
+    final now = DateTime.now();
+    final difference = now.difference(time);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours}h ago';
+    } else {
+      return '${difference.inDays}d ago';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -349,6 +594,9 @@ class _PostScreenState extends State<PostScreen> {
       final likes = data['likes'] as int? ?? 0;
       final comments = List<String>.from(data['comments'] ?? []);
       final fullName = data['fullName'] as String? ?? 'Anonymous';
+      final commentDetails = List<Map<String, dynamic>>.from(
+        data['commentDetails'] ?? [],
+      );
 
       return SingleChildScrollView(
         child: Column(
@@ -386,28 +634,7 @@ class _PostScreenState extends State<PostScreen> {
               _buildLocationSection(latitude, longitude),
             Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          isLiked ? Icons.favorite : Icons.favorite_border,
-                          color: isLiked ? Colors.red : null,
-                        ),
-                        onPressed: _toggleLike,
-                      ),
-                      Text('$likes likes'),
-                      const SizedBox(width: 16),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.bookmark),
-                    onPressed: _toggleSave,
-                  ),
-                ],
-              ),
+              child: _buildInteractionButtons(data),
             ),
             const Divider(),
             Padding(
@@ -415,35 +642,49 @@ class _PostScreenState extends State<PostScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Comments',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  ...comments.map(
-                    (comment) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4.0),
-                      child: Text('- $comment'),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _commentController,
-                          decoration: const InputDecoration(
-                            hintText: 'Add a comment...',
-                            border: OutlineInputBorder(),
-                          ),
+                      Text(
+                        'Comments (${commentDetails.length})',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.send),
-                        onPressed:
-                            () => _addComment(_commentController.text.trim()),
+                      TextButton(
+                        onPressed: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            builder:
+                                (context) =>
+                                    _buildCommentsSheet(commentDetails),
+                          );
+                        },
+                        child: const Text('View all'),
                       ),
                     ],
+                  ),
+                  // Show latest 2 comments
+                  ...commentDetails
+                      .take(2)
+                      .map(
+                        (comment) => ListTile(
+                          leading: const CircleAvatar(
+                            child: Icon(Icons.person),
+                          ),
+                          title: Text(comment['userName'] ?? 'Anonymous'),
+                          subtitle: Text(comment['text']),
+                        ),
+                      ),
+                  TextField(
+                    controller: _commentController,
+                    decoration: const InputDecoration(
+                      hintText: 'Add a comment...',
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: _addComment,
                   ),
                 ],
               ),
@@ -459,7 +700,47 @@ class _PostScreenState extends State<PostScreen> {
 
   @override
   void dispose() {
+    _mapController?.dispose();
     _commentController.dispose();
     super.dispose();
+  }
+}
+
+class CommentTile extends StatelessWidget {
+  final String userName;
+  final String text;
+  final DateTime createdAt;
+
+  const CommentTile({
+    required this.userName,
+    required this.text,
+    required this.createdAt,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const CircleAvatar(child: Icon(Icons.person)),
+      title: Text(userName),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(text),
+          Text(
+            _formatTimeAgo(createdAt),
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTimeAgo(DateTime dateTime) {
+    final difference = DateTime.now().difference(dateTime);
+    if (difference.inMinutes < 1) return 'Just now';
+    if (difference.inHours < 1) return '${difference.inMinutes}m ago';
+    if (difference.inDays < 1) return '${difference.inHours}h ago';
+    return '${difference.inDays}d ago';
   }
 }

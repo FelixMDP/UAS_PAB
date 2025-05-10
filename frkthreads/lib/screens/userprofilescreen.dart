@@ -18,6 +18,23 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   static const Color _textLight = Colors.white;
   static const Color _textDark = Colors.black87;
 
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inSeconds < 60) {
+      return '${difference.inSeconds} detik yang lalu';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} menit yang lalu';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} jam yang lalu';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} hari yang lalu';
+    } else {
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -124,9 +141,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               ),
             ),
           );
-        }
-
-        return ListView.builder(
+        }        return ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: posts.length,
@@ -134,6 +149,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             final post = posts[index].data() as Map<String, dynamic>;
             final imageBase64 = post['image'] as String?;
             final description = post['description'] as String?;
+            final createdAtStr = post['createdAt'] as String?;
+            final category = post['category'] as String?;
+
+            DateTime createdAt;
+            if (createdAtStr != null) {
+              createdAt = DateTime.parse(createdAtStr);
+            } else {
+              createdAt = DateTime.now();
+            }
+
+            String timeAgo = _getTimeAgo(createdAt);
 
             return Card(
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -144,6 +170,39 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Header with timestamp and category
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          timeAgo,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _textDark.withOpacity(0.6),
+                          ),
+                        ),
+                        if (category != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: _accent.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              category,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _accent,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  // Post image
                   if (imageBase64 != null)
                     ClipRRect(
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
@@ -154,6 +213,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         fit: BoxFit.cover,
                       ),
                     ),
+                  // Post description
                   if (description != null)
                     Padding(
                       padding: const EdgeInsets.all(12),

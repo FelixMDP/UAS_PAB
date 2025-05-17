@@ -10,6 +10,7 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:frkthreads/widgets/story_list.dart';
 import 'addpostscreen.dart';
 import 'searchscreen.dart';
 import 'notificationscreen.dart';
@@ -131,10 +132,16 @@ class _HomeScreenState extends State<HomeScreen>
           const SizedBox(width: 10),
         ],
         elevation: 0,
-      ),
-      body: AnimatedSwitcher(
+      ),      body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
-        child: _widgetOptions[_selectedIndex],
+        child: _selectedIndex == 0
+            ? Column(
+                children: [
+                  const StoryList(),
+                  Expanded(child: _widgetOptions[_selectedIndex]),
+                ],
+              )
+            : _widgetOptions[_selectedIndex],
       ),
       floatingActionButton: ScaleTransition(
         scale: _controller,
@@ -790,29 +797,5 @@ class PostListView extends StatelessWidget {
           ),
     );
   }
-
-  Future<void> _createNotification({
-    required String type,
-    required String toUserId,
-    required String postId,
-    required String description,
-  }) async {
-    try {
-      final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) return;
-
-      await FirebaseFirestore.instance.collection('notifications').add({
-        'type': type,
-        'fromUserId': currentUser.uid,
-        'fromUserName': currentUser.displayName ?? 'Anonymous',
-        'toUserId': toUserId,
-        'postId': postId,
-        'description': description,
-        'createdAt': FieldValue.serverTimestamp(),
-        'isRead': false,
-      });
-    } catch (e) {
-      debugPrint('Error creating notification: $e');
-    }
-  }
+  // Notification functionality moved to a separate service
 }

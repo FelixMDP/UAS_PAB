@@ -99,7 +99,7 @@ class SignInScreenState extends State<SignInScreen> with SingleTickerProviderSta
                               decoration: InputDecoration(
                                 filled: true,
                                 fillColor: inputFillColor,
-                                labelText: 'Email',
+                                labelText: 'Username',
                                 labelStyle: TextStyle(color: textColor),
                                 floatingLabelBehavior: FloatingLabelBehavior.never,
                                 border: OutlineInputBorder(

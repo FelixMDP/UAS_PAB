@@ -6,6 +6,7 @@ import 'package:frkthreads/models/story.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
 import 'package:frkthreads/screens/story_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
 class StoryList extends StatelessWidget {
   const StoryList({Key? key}) : super(key: key);
@@ -41,84 +42,89 @@ class StoryList extends StatelessWidget {
               .map((doc) => Story.fromFirestore(doc))
               .toList();
 
+          final currentUser = FirebaseAuth.instance.currentUser;
+          Story? userStory;
+try {
+  userStory = stories.firstWhere((story) => story.userId == currentUser?.uid);
+} catch (_) {
+  userStory = null;
+}
+
+          final otherStories = stories
+              .where((story) => story.userId != currentUser?.uid)
+              .toList();
+
           if (stories.isEmpty) {
-            return Center(
-              child: Text(
-                'No stories available',
-                style: TextStyle(
-                  color: isDark ? Colors.white70 : Colors.black54,
-                ),
-              ),
+            // Instead of showing "No stories available", show only the add story button
+            return ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                _buildAddStoryButton(context, isDark, null),
+              ],
             );
           }
 
           return ListView.builder(
             scrollDirection: Axis.horizontal,
-            itemCount: stories.length + 1, // +1 for add story button
+            itemCount: otherStories.length + 1, // +1 for user story button
             itemBuilder: (context, index) {
               if (index == 0) {
-                return _buildAddStoryButton(context, isDark);
+                return _buildAddStoryButton(context, isDark, userStory);
               }
 
-              final story = stories[index - 1];
-              final currentUser = FirebaseAuth.instance.currentUser;
-              final isViewed = story.isViewed(currentUser?.uid ?? '');
+          final story = stories[index - 1];
+          final isViewed = story.isViewed(currentUser?.uid ?? '');
 
-              return GestureDetector(
-                onTap: () => _showStory(context, stories, index - 1),
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 68,
-                        height: 68,
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: isViewed
-                              ? null
-                              : const LinearGradient(
-                                  colors: [
-                                    Color(0xFF833AB4),
-                                    Color(0xFFF77737),
-                                    Color(0xFFE1306C),
-                                  ],
-                                  begin: Alignment.topRight,
-                                  end: Alignment.bottomLeft,
-                                ),
-                          color: isViewed ? Colors.grey : null,
-                        ),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFF293133)
-                                  : const Color(0xFFF1E9D2),
-                              width: 3,
-                            ),
-                          ),
-                          child: CircleAvatar(
-                            backgroundImage:
-                                CachedNetworkImageProvider(story.imageUrl),
-                          ),
-                        ),
+          return GestureDetector(
+            onTap: () => _showStory(context, stories, index - 1),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(
+                children: [
+                  Container(
+                    width: 68,
+                    height: 68,
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+  shape: BoxShape.circle,
+  border: Border.all(
+    color: isViewed ? Colors.grey : Colors.green,
+    width: 3,
+  ),
+),
+
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        story.userName.length > 10
-                            ? '${story.userName.substring(0, 7)}...'
-                            : story.userName,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark ? Colors.white70 : Colors.black87,
-                        ),
+                      child: CircleAvatar(
+                        backgroundImage:
+                            CachedNetworkImageProvider(story.imageUrl),
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              );
+                  const SizedBox(height: 4),
+                  Text(
+                    story.userName.length > 10
+                        ? '${story.userName.substring(0, 7)}...'
+                        : story.userName,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  Text(
+  timeago.format(story.createdAt),
+  style: TextStyle(
+    fontSize: 10,
+    color: isDark ? Colors.white38 : Colors.black38,
+  ),
+),
+
+                ],
+              ),
+            ),
+          );
             },
           );
         },
@@ -126,22 +132,37 @@ class StoryList extends StatelessWidget {
     );
   }
 
-  Widget _buildAddStoryButton(BuildContext context, bool isDark) {
+  Widget _buildAddStoryButton(BuildContext context, bool isDark, Story? userStory) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
         children: [
-          Container(
-            width: 68,
-            height: 68,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isDark ? Colors.grey[800] : Colors.grey[200],
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.add),
-              color: isDark ? Colors.white : Colors.black87,
-              onPressed: () => _addStory(context),
+          GestureDetector(
+            onTap: () {
+              if (userStory == null) {
+                _addStory(context);
+              } else {
+                _showStory(context, [userStory], 0);
+              }
+            },
+            child: Container(
+              width: 68,
+              height: 68,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: userStory == null
+                    ? (isDark ? Colors.grey[800] : Colors.grey[200])
+                    : Colors.red,
+              ),
+              child: userStory == null
+                  ? Icon(
+                      Icons.add,
+                      color: isDark ? Colors.white : Colors.black87,
+                    )
+                  : CircleAvatar(
+                      backgroundImage:
+                          CachedNetworkImageProvider(userStory.imageUrl),
+                    ),
             ),
           ),
           const SizedBox(height: 4),

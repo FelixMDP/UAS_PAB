@@ -20,16 +20,18 @@ class Story {
   });
 
   factory Story.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    return Story(
-      id: doc.id,
-      userId: data['userId'] ?? '',
-      userName: data['userName'] ?? 'Anonymous',
-      imageUrl: data['imageUrl'] ?? '',
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      viewedBy: List<String>.from(data['viewedBy'] ?? []),
-    );
-  }
+  final data = doc.data() as Map<String, dynamic>;
+
+  return Story(
+    id: doc.id,
+    userId: data['userId'],
+    userName: data['userName'],
+    imageUrl: data['imageUrl'],
+    createdAt: (data['createdAt'] as Timestamp).toDate(), // ✅ Convert Timestamp to DateTime
+    viewedBy: List<String>.from(data['viewers'] ?? []),
+  );
+}
+
 
   Map<String, dynamic> toMap() {
     return {

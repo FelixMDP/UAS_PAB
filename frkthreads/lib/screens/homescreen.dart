@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:frkthreads/screens/postdetailscreen.dart';
+import 'package:frkthreads/screens/searchscreen.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
@@ -25,7 +26,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  final int _selectedIndex = 0;
+  int _selectedIndex = 0;
   late final AnimationController _controller;
 
   // Colors

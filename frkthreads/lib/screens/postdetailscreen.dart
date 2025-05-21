@@ -9,6 +9,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+// Add constants at the top
+const double _mapHeight = 400.0;
+const double _imageHeight = 250.0;
+const double _cornerRadius = 15.0;
+
 class DetailScreen extends StatefulWidget {
   final String imageBase64;
   final String description;
@@ -38,7 +43,9 @@ class DetailScreen extends StatefulWidget {
 }
 
 class _DetailScreenState extends State<DetailScreen> {
+  // Add state variables at the top
   final TextEditingController _commentController = TextEditingController();
+  late final StreamSubscription<DocumentSnapshot> _postSubscription;
   List<String> comments = [];
   int likes = 0;
   bool isLiked = false;
@@ -49,10 +56,25 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchPostDetails();
+    _postSubscription = FirebaseFirestore.instance
+        .collection('posts')
+        .doc(widget.postId)
+        .snapshots()
+        .listen((doc) {
+          if (doc.exists) {
+            final data = doc.data()!;
+            setState(() {
+              comments = List<String>.from(data['comments'] ?? []);
+              likes = data['likes'] ?? 0;
+              isLiked = (data['likedBy'] ?? []).contains(
+                FirebaseAuth.instance.currentUser?.uid,
+              );
+            });
+          }
+        });
+
     _updateTimeAgo();
     _checkPostOwnership();
-    // Update time every minute
     _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
       _updateTimeAgo();
     });
@@ -616,6 +638,7 @@ class _DetailScreenState extends State<DetailScreen> {
   void dispose() {
     _commentController.dispose();
     _timer?.cancel();
+    _postSubscription.cancel();
     super.dispose();
   }
 }

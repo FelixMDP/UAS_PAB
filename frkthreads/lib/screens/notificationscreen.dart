@@ -111,8 +111,14 @@ class NotificationScreen extends StatelessWidget {
                                       (postData['createdAt'] as Timestamp)
                                           .toDate(),
                                   fullName: postData['fullName'] ?? 'Anonymous',
-                                  latitude: postData['latitude'] ?? 0.0,
-                                  longitude: postData['longitude'] ?? 0.0,
+                                  latitude:
+                                      (postData['latitude'] as num?)
+                                          ?.toDouble() ??
+                                      0.0,
+                                  longitude:
+                                      (postData['longitude'] as num?)
+                                          ?.toDouble() ??
+                                      0.0,
                                   category: postData['category'] ?? 'General',
                                   heroTag:
                                       'notification_${notification['postId']}',

@@ -36,7 +36,6 @@ class _AddPostScreenState extends State<AddPostScreen> {
   GoogleMapController? _mapController;
   Timer? _debounce;
 
-
   Future<void> _pickImage(ImageSource source) async {
     try {
       final pickedFile = await _picker.pickImage(source: source);
@@ -48,10 +47,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
         });
         await _compressAndEncodeImage();
         final desc = _descriptionController.text.trim();
-if (desc.isNotEmpty) {
-  await _generateCategoryFromDescription(desc);
-}
-
+        if (desc.isNotEmpty) {
+          await _generateCategoryFromDescription(desc);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -84,46 +82,43 @@ if (desc.isNotEmpty) {
   }
 
   Future<void> _generateCategoryFromDescription(String description) async {
-  setState(() => _isGenerating = true);
-  try {
-    final model = GenerativeModel(
-      model: 'gemini-1.5-pro',
-      apiKey: 'AIzaSyB_B3rjunORQJQKVLysNw7d80B8IgOsuCU',
-    );
+    setState(() => _isGenerating = true);
+    try {
+      final model = GenerativeModel(
+        model: 'gemini-1.5-pro',
+        apiKey: 'AIzaSyB_B3rjunORQJQKVLysNw7d80B8IgOsuCU',
+      );
 
-    final prompt = '''
+      final prompt = '''
 Berdasarkan deskripsi berikut, tentukan kategori konten ini. Hanya jawab dengan satu kata kategori saja seperti: makanan, hewan, perjalanan, aktivitas, hiburan, teknologi, dll.
 
 Deskripsi: "$description"
 Kategori:
 ''';
 
-    final response = await model.generateContent([
-      Content.text(prompt),
-    ]);
+      final response = await model.generateContent([Content.text(prompt)]);
 
-    final result = response.text?.trim().toLowerCase();
-    if (result != null && result.isNotEmpty) {
-      setState(() {
-        _aiCategory = result;
-      });
-    } else {
-      setState(() {
-        _aiCategory = 'tidak diketahui';
-      });
+      final result = response.text?.trim().toLowerCase();
+      if (result != null && result.isNotEmpty) {
+        setState(() {
+          _aiCategory = result;
+        });
+      } else {
+        setState(() {
+          _aiCategory = 'tidak diketahui';
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to determine category: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mendapatkan kategori dari AI.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isGenerating = false);
     }
-  } catch (e) {
-    debugPrint('Failed to determine category: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal mendapatkan kategori dari AI.')),
-      );
-    }
-  } finally {
-    if (mounted) setState(() => _isGenerating = false);
   }
-}
-
 
   Future<void> _getLocation() async {
     try {
@@ -369,25 +364,23 @@ Kategori:
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   TextField(
-  controller: _descriptionController,
-  textCapitalization: TextCapitalization.sentences,
-  maxLines: 6,
-   onEditingComplete: () {
-    final desc = _descriptionController.text.trim();
-    if (desc.isNotEmpty) {
-      _generateCategoryFromDescription(desc);
-    }
-  },
+                    controller: _descriptionController,
+                    textCapitalization: TextCapitalization.sentences,
+                    maxLines: 6,
+                    onEditingComplete: () {
+                      final desc = _descriptionController.text.trim();
+                      if (desc.isNotEmpty) {
+                        _generateCategoryFromDescription(desc);
+                      }
+                    },
 
-
-  decoration: InputDecoration(
-    hintText: 'Tambahkan deskripsi aktivitasmu...',
-    filled: true,
-    fillColor: AddPostScreen._card,
-    border: const OutlineInputBorder(),
-  ),
-),
-
+                    decoration: InputDecoration(
+                      hintText: 'Tambahkan deskripsi aktivitasmu...',
+                      filled: true,
+                      fillColor: AddPostScreen._card,
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
                 ],
               ),
             ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:frkthreads/screens/postdetailscreen.dart';
 import 'package:intl/intl.dart';
 
 class NotificationScreen extends StatelessWidget {
@@ -21,7 +22,6 @@ class NotificationScreen extends StatelessWidget {
             FirebaseFirestore.instance
                 .collection('notifications')
                 .where('toUserId', isEqualTo: currentUserId)
-                .where('fromUserId', isNotEqualTo: currentUserId)
                 .orderBy('createdAt', descending: true)
                 .snapshots(),
         builder: (context, snapshot) {
@@ -88,14 +88,38 @@ class NotificationScreen extends StatelessWidget {
                   ),
                   title: Text('$fromUserName $description'),
                   subtitle: Text(_formatTimeAgo(createdAt)),
-                  onTap: () {
+                  onTap: () async {
                     if (notification['postId'] != null) {
-                      // Navigate to post detail
-                      Navigator.pushNamed(
-                        context,
-                        '/post',
-                        arguments: notification['postId'],
-                      );
+                      // Fetch post details first
+                      final postDoc =
+                          await FirebaseFirestore.instance
+                              .collection('posts')
+                              .doc(notification['postId'])
+                              .get();
+
+                      if (postDoc.exists && context.mounted) {
+                        final postData = postDoc.data()!;
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) => DetailScreen(
+                                  postId: notification['postId'],
+                                  imageBase64: postData['image'] ?? '',
+                                  description: postData['description'] ?? '',
+                                  createdAt:
+                                      (postData['createdAt'] as Timestamp)
+                                          .toDate(),
+                                  fullName: postData['fullName'] ?? 'Anonymous',
+                                  latitude: postData['latitude'] ?? 0.0,
+                                  longitude: postData['longitude'] ?? 0.0,
+                                  category: postData['category'] ?? 'General',
+                                  heroTag:
+                                      'notification_${notification['postId']}',
+                                ),
+                          ),
+                        );
+                      }
                     }
                   },
                 ),

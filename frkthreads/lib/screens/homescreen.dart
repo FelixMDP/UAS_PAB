@@ -12,7 +12,6 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:frkthreads/widgets/story_list.dart';
 import 'addpostscreen.dart';
-import 'searchscreen.dart';
 import 'notificationscreen.dart';
 import 'profilescreen.dart';
 import 'signinscreen.dart';
@@ -26,8 +25,14 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  int _selectedIndex = 0;
-  late AnimationController _controller;
+  final int _selectedIndex = 0;
+  late final AnimationController _controller;
+
+  // Colors
+  static const backgroundColorLight = Color(0xFFF1E9D2);
+  static const backgroundColorDark = Color(0xFF293133);
+  static const primaryColorLight = Color(0xFFB88C66);
+  static const primaryColorDark = Color(0xFF2D3B3A);
 
   // Helper to map _selectedIndex (0-3) to CurvedNavigationBar index (0-4)
   int _mapSelectedIndexToNavBarIndex(int selectedIndex) {

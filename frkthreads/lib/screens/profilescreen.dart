@@ -251,7 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           FirebaseFirestore.instance
               .collection('posts')
               .where('userId', isEqualTo: _uid)
-              .where('image', isNull: false) // Only get posts with images
+              .where('image', isNull: false)
               .orderBy('createdAt', descending: true)
               .snapshots(),
       builder: (context, snapshot) {

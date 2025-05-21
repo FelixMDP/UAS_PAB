@@ -7,7 +7,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
-import 'full_image_screen.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class DetailScreen extends StatefulWidget {

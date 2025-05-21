@@ -132,16 +132,18 @@ class _HomeScreenState extends State<HomeScreen>
           const SizedBox(width: 10),
         ],
         elevation: 0,
-      ),      body: AnimatedSwitcher(
+      ),
+      body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),
-        child: _selectedIndex == 0
-            ? Column(
-                children: [
-                  const StoryList(),
-                  Expanded(child: _widgetOptions[_selectedIndex]),
-                ],
-              )
-            : _widgetOptions[_selectedIndex],
+        child:
+            _selectedIndex == 0
+                ? Column(
+                  children: [
+                    const StoryList(),
+                    Expanded(child: _widgetOptions[_selectedIndex]),
+                  ],
+                )
+                : _widgetOptions[_selectedIndex],
       ),
       floatingActionButton: ScaleTransition(
         scale: _controller,
@@ -619,7 +621,7 @@ class PostListView extends StatelessWidget {
                           ),
                         ],
                       ),
-                    ),  
+                    ),
                   ),
                 ),
               );
@@ -797,5 +799,6 @@ class PostListView extends StatelessWidget {
           ),
     );
   }
+
   // Notification functionality moved to a separate service
 }

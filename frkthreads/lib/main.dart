@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:frkthreads/screens/splashscreen.dart';
+import 'package:frkthreads/screens/homescreen.dart';
+import 'package:frkthreads/screens/signinscreen.dart';
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
@@ -37,6 +39,20 @@ class MainApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           // Add page transition animations
           onGenerateRoute: (settings) {
+            Widget page;
+            switch (settings.name) {
+              case '/':
+                page = const SplashScreen();
+                break;
+              case '/home':
+                page = const HomeScreen();
+                break;
+              case '/signin':
+                page = const SignInScreen();
+                break;
+              default:
+                page = const SplashScreen();
+            }
             return PageRouteBuilder(
               settings: settings,
               pageBuilder: (context, animation, secondaryAnimation) {
@@ -46,9 +62,7 @@ class MainApp extends StatelessWidget {
                   child: SlideAnimation(
                     verticalOffset: 50.0,
                     child: FadeInAnimation(
-                      child: settings.name == '/'
-                          ? const SplashScreen()
-                          : const SplashScreen(), // Update this with your route handling
+                      child: page,
                     ),
                   ),
                 );

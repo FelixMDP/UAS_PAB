@@ -84,9 +84,12 @@ class _AddPostScreenState extends State<AddPostScreen> {
   Future<void> _generateCategoryFromDescription(String description) async {
     setState(() => _isGenerating = true);
     try {
+      
+      final String apiKey = 'AIzaSyB_B3rjunORQJQKVLysNw7d80B8IgOsuCU';
+
       final model = GenerativeModel(
         model: 'gemini-1.5-pro',
-        apiKey: 'AIzaSyB_B3rjunORQJQKVLysNw7d80B8IgOsuCU',
+        apiKey: apiKey,
       );
 
       final prompt = '''

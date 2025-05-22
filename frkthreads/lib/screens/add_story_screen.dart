@@ -10,7 +10,7 @@ import 'package:frkthreads/providers/theme_provider.dart';
 class AddStoryScreen extends StatefulWidget {
   final bool isFromCamera;
 
-  const AddStoryScreen({Key? key, required this.isFromCamera}) : super(key: key);
+  const AddStoryScreen({super.key, required this.isFromCamera});
 
   @override
   State<AddStoryScreen> createState() => _AddStoryScreenState();
@@ -53,7 +53,6 @@ class _AddStoryScreenState extends State<AddStoryScreen> {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return;
 
-      // Upload image to Firebase Storage
       final storageRef = FirebaseStorage.instance
           .ref()
           .child('stories')
@@ -62,7 +61,6 @@ class _AddStoryScreenState extends State<AddStoryScreen> {
       await storageRef.putFile(_imageFile!);
       final imageUrl = await storageRef.getDownloadURL();
 
-      // Add story to Firestore
       await FirebaseFirestore.instance.collection('stories').add({
         'userId': currentUser.uid,
         'userName': currentUser.displayName ?? 'Anonymous',
@@ -117,7 +115,7 @@ class _AddStoryScreenState extends State<AddStoryScreen> {
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
           : _imageFile == null
-              ? Center(child: Text('No image selected'))
+              ? Center(child: Text(''))
               : Center(
                   child: Image.file(
                     _imageFile!,

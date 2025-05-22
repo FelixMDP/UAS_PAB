@@ -4,11 +4,16 @@ import 'package:frkthreads/screens/splashscreen.dart';
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:frkthreads/services/local_notification_service.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Initialize local notifications
+  await LocalNotificationService.instance.initialize();
+  
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeProvider(),

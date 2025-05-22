@@ -8,11 +8,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-
-// Add constants at the top
-const double _mapHeight = 400.0;
-const double _imageHeight = 250.0;
-const double _cornerRadius = 15.0;
+import 'package:frkthreads/widgets/post_ui_components.dart';
+import 'package:frkthreads/services/local_notification_service.dart';
 
 class DetailScreen extends StatefulWidget {
   final String imageBase64;
@@ -47,11 +44,14 @@ class _DetailScreenState extends State<DetailScreen> {
   final TextEditingController _commentController = TextEditingController();
   late final StreamSubscription<DocumentSnapshot> _postSubscription;
   List<String> comments = [];
+  List<Map<String, dynamic>> commentDetails = [];
   int likes = 0;
   bool isLiked = false;
   Timer? _timer;
   String _timeAgo = '';
   bool isPostOwner = false;
+  bool _isLiking = false;
+  bool _isCommenting = false;
 
   @override
   void initState() {
@@ -65,6 +65,7 @@ class _DetailScreenState extends State<DetailScreen> {
             final data = doc.data()!;
             setState(() {
               comments = List<String>.from(data['comments'] ?? []);
+              commentDetails = List<Map<String, dynamic>>.from(data['commentDetails'] ?? []);
               likes = data['likes'] ?? 0;
               isLiked = (data['likedBy'] ?? []).contains(
                 FirebaseAuth.instance.currentUser?.uid,
@@ -127,95 +128,132 @@ class _DetailScreenState extends State<DetailScreen> {
   }
 
   Future<void> _toggleLike() async {
+    if (_isLiking) return;
+    
     try {
+      setState(() => _isLiking = true);
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return;
 
-      final postRef = FirebaseFirestore.instance
-          .collection('posts')
-          .doc(widget.postId);
+      final postRef = FirebaseFirestore.instance.collection('posts').doc(widget.postId);
       final doc = await postRef.get();
 
       if (!doc.exists) return;
 
-      final likedBy = List<String>.from(doc.data()?['likedBy'] ?? []);
-
+      final data = doc.data()!;
+      final likedBy = List<String>.from(data['likedBy'] ?? []);
+      
       if (likedBy.contains(uid)) {
-        likedBy.remove(uid);
         await postRef.update({
           'likes': FieldValue.increment(-1),
-          'likedBy': likedBy,
+          'likedBy': FieldValue.arrayRemove([uid])
+        });
+        setState(() {
+          isLiked = false;
+          likes--;
         });
       } else {
-        likedBy.add(uid);
         await postRef.update({
           'likes': FieldValue.increment(1),
-          'likedBy': likedBy,
-        });
+          'likedBy': FieldValue.arrayUnion([uid])
+        });        setState(() {
+          isLiked = true;
+          likes++;
+        });        // Add notification
+        final postOwnerId = data['userId'];
+        if (postOwnerId != uid) {
+          final currentUser = FirebaseAuth.instance.currentUser;
+          final userName = currentUser?.displayName ?? 'Anonymous';
+          
+          // Add to Firestore notifications
+          await FirebaseFirestore.instance.collection('notifications').add({
+            'type': 'like',
+            'fromUserId': uid,
+            'fromUserName': userName,
+            'toUserId': postOwnerId,
+            'postId': widget.postId,
+            'description': 'liked your post',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRead': false,
+          });          // Show local notification
+          await LocalNotificationService.instance.showLikeNotification(
+            username: userName,
+            postId: widget.postId,
+          );
+        }
       }
-
-      // Add notification
-      final postData = doc.data() as Map<String, dynamic>;
-      final postOwnerId = postData['userId'];
-
-      if (postOwnerId != FirebaseAuth.instance.currentUser?.uid) {
-        await FirebaseFirestore.instance.collection('notifications').add({
-          'type': 'like',
-          'fromUserId': FirebaseAuth.instance.currentUser?.uid,
-          'fromUserName':
-              FirebaseAuth.instance.currentUser?.displayName ?? 'Anonymous',
-          'toUserId': postOwnerId,
-          'postId': widget.postId,
-          'description': 'liked your post',
-          'createdAt': FieldValue.serverTimestamp(),
-          'isRead': false,
-        });
-      }
-
-      _fetchPostDetails();
     } catch (e) {
       debugPrint('Error toggling like: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating like: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLiking = false);
     }
   }
 
   Future<void> _addComment() async {
-    if (_commentController.text.trim().isEmpty) return;
+    final commentText = _commentController.text.trim();
+    if (_isCommenting || commentText.isEmpty) return;
 
     try {
+      setState(() => _isCommenting = true);
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final userName = userDoc.data()?['fullName'] ?? 'Anonymous';
+
+      final commentData = {
+        'text': commentText,
+        'userId': uid,
+        'userName': userName,
+        'createdAt': DateTime.now().toIso8601String(),
+      };
+
       await FirebaseFirestore.instance
           .collection('posts')
           .doc(widget.postId)
           .update({
-            'comments': FieldValue.arrayUnion([_commentController.text.trim()]),
-          });
+        'comments': FieldValue.arrayUnion([commentText]),
+        'commentDetails': FieldValue.arrayUnion([commentData])
+      });
 
       // Add notification
-      final postRef = FirebaseFirestore.instance
-          .collection('posts')
-          .doc(widget.postId);
+      final postRef = FirebaseFirestore.instance.collection('posts').doc(widget.postId);
       final doc = await postRef.get();
       final postData = doc.data() as Map<String, dynamic>;
-      final postOwnerId = postData['userId'];
-
-      if (postOwnerId != FirebaseAuth.instance.currentUser?.uid) {
+      final postOwnerId = postData['userId'];      if (postOwnerId != uid) {
+        // Add to Firestore notifications
         await FirebaseFirestore.instance.collection('notifications').add({
           'type': 'comment',
-          'fromUserId': FirebaseAuth.instance.currentUser?.uid,
-          'fromUserName':
-              FirebaseAuth.instance.currentUser?.displayName ?? 'Anonymous',
+          'fromUserId': uid,
+          'fromUserName': userName,
           'toUserId': postOwnerId,
           'postId': widget.postId,
-          'description':
-              'commented on your post: ${_commentController.text.trim()}',
+          'description': 'commented on your post: $commentText',
           'createdAt': FieldValue.serverTimestamp(),
           'isRead': false,
-        });
+        });        // Show local notification
+        await LocalNotificationService.instance.showCommentNotification(
+          username: userName,
+          postId: widget.postId,
+        );
       }
 
       _commentController.clear();
       _fetchPostDetails();
     } catch (e) {
       debugPrint('Error adding comment: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error adding comment: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCommenting = false);
     }
   }
 
@@ -378,11 +416,10 @@ class _DetailScreenState extends State<DetailScreen> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
+            ),            TextButton(
+              onPressed: () async {
                 Navigator.pop(context);
-                _deletePost();
+                await _deletePost();
               },
               child: const Text('Delete', style: TextStyle(color: Colors.red)),
             ),
@@ -392,74 +429,224 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  Widget _buildCommentSection() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            spreadRadius: 1,
-            blurRadius: 5,
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          ListView.separated(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
-            itemCount: comments.length,
-            separatorBuilder: (_, __) => Divider(),
-            itemBuilder: (context, index) {
-              return ListTile(
-                title: Text(comments[index], style: TextStyle(fontSize: 14)),
-                leading: CircleAvatar(child: Icon(Icons.person)),
-              );
-            },
-          ),
-          Padding(
-            padding: EdgeInsets.all(8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _commentController,
-                    decoration: InputDecoration(
-                      hintText: 'Add a comment...',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+  Widget _buildCommentsSheet() {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (_, controller) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header with comment count
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  TweenAnimationBuilder<int>(
+                    tween: IntTween(begin: 0, end: commentDetails.length),
+                    duration: const Duration(milliseconds: 500),
+                    builder: (context, value, child) => Text(
+                      'Comments ($value)',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.send),
-                  onPressed: () => _addComment(),
-                ),
-              ],
+                  const Spacer(),
+                  if (commentDetails.isNotEmpty)
+                    TextButton.icon(
+                      icon: const Icon(Icons.sort),
+                      label: const Text('Latest'),
+                      onPressed: () {
+                        // Implement sorting if needed
+                      },
+                    ),
+                ],
+              ),
             ),
-          ),
-        ],
+            // Comments list
+            Expanded(
+              child: commentDetails.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.chat_bubble_outline,
+                              size: 64, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No comments yet\nBe the first to comment!',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      controller: controller,
+                      itemCount: commentDetails.length,
+                      itemBuilder: (context, index) {
+                        final comment = commentDetails[index];
+                        final commentTime = DateTime.parse(comment['createdAt']);
+                        final timeAgo = _formatTimeAgo(commentTime);
+
+                        return Column(
+                          children: [
+                            ListTile(
+                              leading: const CircleAvatar(
+                                backgroundColor: Colors.blue,
+                                child: Icon(Icons.person, color: Colors.white),
+                              ),
+                              title: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      comment['userName'] ?? 'Anonymous',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    timeAgo,
+                                    style: TextStyle(
+                                      color: Colors.grey[600],
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  comment['text'],
+                                  style: const TextStyle(
+                                    color: Colors.black87,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (index < commentDetails.length - 1)
+                              const Divider(indent: 72),
+                          ],
+                        );
+                      },
+                    ),
+            ),
+            // Comment input
+            Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                top: 8,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _commentController,
+                      maxLines: null,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        hintText: 'Add a comment...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide(color: Colors.grey[300]!),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: const BorderSide(color: Colors.blue),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        fillColor: Colors.grey[100],
+                        filled: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: Colors.blue,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: IconButton(
+                      icon: _isCommenting
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor:
+                                    AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Icon(Icons.send, color: Colors.white),
+                      onPressed: _isCommenting ? null : _addComment,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final createdAtFormatted = DateFormat(
-      'dd MMMM yyyy, HH:mm',
-    ).format(widget.createdAt);
-
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(_timeAgo),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.fullName,
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              _timeAgo,
+              style: const TextStyle(
+                color: Colors.grey,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
         actions: [
           if (isPostOwner)
             IconButton(
@@ -472,162 +659,125 @@ class _DetailScreenState extends State<DetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            GestureDetector(
-              onTap:
-                  () =>
-                      widget.latitude != 0.0 && widget.longitude != 0.0
-                          ? _showMapBottomSheet()
-                          : null,
-              child: Stack(
-                children: [
-                  Hero(
-                    tag: widget.heroTag,
-                    child: Image.memory(
-                      base64Decode(widget.imageBase64),
-                      width: double.infinity,
-                      height: 250,
-                      fit: BoxFit.cover,
-                    ),
+            // Main image with hero animation
+            Hero(
+              tag: widget.heroTag,
+              child: Container(
+                height: 300,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  image: DecorationImage(
+                    image: MemoryImage(base64Decode(widget.imageBase64)),
+                    fit: BoxFit.cover,
                   ),
-                  if (widget.latitude != 0.0 && widget.longitude != 0.0)
-                    Positioned(
-                      bottom: 16,
-                      right: 16,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.7),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: const [
-                            Icon(
-                              Icons.location_on,
-                              color: Colors.white,
-                              size: 16,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'View Location',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
             ),
+            
+            // Category and interaction buttons
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  // Category chip
+                  Wrap(
                     children: [
-                      const Icon(Icons.category, size: 20, color: Colors.red),
-                      const SizedBox(width: 4),
-                      Text(
-                        widget.category,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                      Chip(
+                        label: Text(
+                          widget.category,
+                          style: const TextStyle(color: Colors.white),
                         ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        onPressed: () => openMap(context),
-                        icon: const Icon(
-                          Icons.map,
-                          size: 32,
-                          color: Colors.lightGreen,
-                        ),
-                        tooltip: "Buka di Google Maps",
+                        backgroundColor: Colors.blue,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.access_time,
-                        size: 20,
-                        color: Colors.blue,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        createdAtFormatted,
-                        style: const TextStyle(fontSize: 14),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
+                  
+                  // Description
                   Text(
                     widget.description,
-                    style: const TextStyle(fontSize: 16),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      height: 1.5,
+                    ),
                   ),
                   const SizedBox(height: 16),
+                  
+                  // Interaction buttons
                   Row(
                     children: [
-                      IconButton(
-                        icon: Icon(
-                          isLiked ? Icons.favorite : Icons.favorite_border,
-                          color: isLiked ? Colors.red : null,
-                        ),
-                        onPressed: _toggleLike,
+                      AnimatedLikeButton(
+                        isLiked: isLiked,
+                        isLoading: _isLiking,
+                        likes: likes,
+                        onTap: _toggleLike,
                       ),
-                      Text('$likes likes'),
                       const SizedBox(width: 16),
-                      IconButton(
-                        icon: const Icon(Icons.comment),
-                        onPressed: () {
+                      CommentButton(
+                        commentCount: comments.length,
+                        onTap: () {
                           showModalBottomSheet(
                             context: context,
                             isScrollControlled: true,
-                            builder:
-                                (context) => Padding(
-                                  padding: EdgeInsets.only(
-                                    bottom:
-                                        MediaQuery.of(
-                                          context,
-                                        ).viewInsets.bottom,
-                                  ),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(16),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'Comments (${comments.length})',
-                                          style: const TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        _buildCommentSection(),
-                                      ],
-                                    ),
-                                  ),
-                                ),
+                            backgroundColor: Colors.transparent,
+                            builder: (context) => _buildCommentsSheet(),
                           );
                         },
                       ),
-                      Text('${comments.length} comments'),
                     ],
                   ),
                 ],
               ),
             ),
+            
+            // Location card
+            if (widget.latitude != 0 && widget.longitude != 0)
+              Card(
+                margin: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+                child: InkWell(
+                  onTap: () => _showMapBottomSheet(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.location_on,
+                            color: Colors.blue,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            'View Location',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right,
+                          color: Colors.grey,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

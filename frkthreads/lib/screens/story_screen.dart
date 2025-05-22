@@ -46,12 +46,20 @@ class _StoryScreenState extends State<StoryScreen> with SingleTickerProviderStat
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return;
 
-    await FirebaseFirestore.instance
-        .collection('stories')
-        .doc(widget.story.id)
-        .update({
-      'viewedBy': FieldValue.arrayUnion([currentUser.uid])
-    });
+    try {
+      await FirebaseFirestore.instance
+          .collection('stories')
+          .doc(widget.story.id)
+          .update({
+            'viewedBy': FieldValue.arrayUnion([currentUser.uid])
+          });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error marking story as viewed: $e')),
+        );
+      }
+    }
   }
 
   @override

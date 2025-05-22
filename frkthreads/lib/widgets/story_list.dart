@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:frkthreads/models/story.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
 import 'package:frkthreads/screens/story_screen.dart';
+import 'package:frkthreads/screens/add_story_screen.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
@@ -194,9 +195,7 @@ try {
       ),
     );
   }
-
   void _addStory(BuildContext context) {
-    // TODO: Implement story creation
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
@@ -208,16 +207,26 @@ try {
               leading: const Icon(Icons.camera_alt),
               title: const Text('Take Photo'),
               onTap: () {
-                // TODO: Implement camera capture
                 Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddStoryScreen(isFromCamera: true),
+                  ),
+                );
               },
             ),
             ListTile(
               leading: const Icon(Icons.photo_library),
               title: const Text('Choose from Gallery'),
               onTap: () {
-                // TODO: Implement gallery picker
                 Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AddStoryScreen(isFromCamera: false),
+                  ),
+                );
               },
             ),
           ],

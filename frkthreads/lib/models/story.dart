@@ -19,16 +19,16 @@ class Story {
     this.duration = const Duration(seconds: 10),
   });
 
-  factory Story.fromFirestore(DocumentSnapshot doc) {
-  final data = doc.data() as Map<String, dynamic>;
+  factory Story.fromFirestore(DocumentSnapshot doc) {  final data = doc.data() as Map<String, dynamic>;
 
   return Story(
     id: doc.id,
-    userId: data['userId'],
-    userName: data['userName'],
-    imageUrl: data['imageUrl'],
-    createdAt: (data['createdAt'] as Timestamp).toDate(), // ✅ Convert Timestamp to DateTime
-    viewedBy: List<String>.from(data['viewers'] ?? []),
+    userId: data['userId'] ?? '',
+    userName: data['userName'] ?? 'Anonymous',
+    imageUrl: data['imageUrl'] ?? '',
+    createdAt: (data['createdAt'] as Timestamp).toDate(),
+    viewedBy: List<String>.from(data['viewedBy'] ?? []),
+    duration: const Duration(seconds: 10),
   );
 }
 

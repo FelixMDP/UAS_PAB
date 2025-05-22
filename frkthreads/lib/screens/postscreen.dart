@@ -5,7 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:url_launcher/url_launcher_string.dart';
 
 class PostScreen extends StatefulWidget {
   final String postId;
@@ -29,7 +28,7 @@ class _PostScreenState extends State<PostScreen> {
 
   GoogleMapController? _mapController;
   bool _isMapReady = false;
-  Set<Marker> _markers = {};
+  final Set<Marker> _markers = {};
 
   @override
   void initState() {

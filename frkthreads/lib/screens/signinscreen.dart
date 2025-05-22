@@ -270,12 +270,12 @@ class SignInScreenState extends State<SignInScreen> with SingleTickerProviderSta
 
   String _getAuthErrorMessage(String code) {
     switch (code) {
-      case 'user-not-found':
-        return 'No user found with that email';
+      case 'email-not-found':
+        return 'Wrong Email. Please try again.';
       case 'wrong-password':
-        return 'Wrong password. Please try again.';
+        return 'Wrong Password. Please try again.';
       default:
-        return 'An error occurred. Please try again.';
+        return 'The Password or Email is wrong. Please try again.';
     }
   }
 }

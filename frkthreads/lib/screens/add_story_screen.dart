@@ -60,12 +60,14 @@ class _AddStoryScreenState extends State<AddStoryScreen> {
 
       await storageRef.putFile(_imageFile!);
       final imageUrl = await storageRef.getDownloadURL();
+      
 
       await FirebaseFirestore.instance.collection('stories').add({
         'userId': currentUser.uid,
         'userName': currentUser.displayName ?? 'Anonymous',
         'imageUrl': imageUrl,
         'createdAt': Timestamp.now(),
+        'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(hours: 24))),
         'viewers': [],
       });
 

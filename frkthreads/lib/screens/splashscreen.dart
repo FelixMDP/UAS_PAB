@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:frkthreads/screens/signinscreen.dart';
-import 'package:frkthreads/main.dart'; // Import main.dart
+import 'package:frkthreads/screens/homescreen.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:animations/animations.dart';
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -45,50 +46,41 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkLoginStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+    // Give animation time to play
+    await Future.delayed(const Duration(seconds: 2));
 
-    Future.delayed(const Duration(seconds: 3), () {
-      if (isLoggedIn) {
-        // Jika sudah login, arahkan ke main.dart
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 500),
-            pageBuilder:
-                (context, animation, secondaryAnimation) =>
-                    const MainApp(), // Ganti dengan widget utama aplikasi Anda
-            transitionsBuilder: (
-              context,
-              animation,
-              secondaryAnimation,
-              child,
-            ) {
-              return FadeScaleTransition(animation: animation, child: child);
-            },
-          ),
-        );
-      } else {
-        // Jika belum login, arahkan ke SignInScreen
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 500),
-            pageBuilder:
-                (context, animation, secondaryAnimation) =>
-                    const SignInScreen(),
-            transitionsBuilder: (
-              context,
-              animation,
-              secondaryAnimation,
-              child,
-            ) {
-              return FadeScaleTransition(animation: animation, child: child);
-            },
-          ),
-        );
-      }
-    });
+    if (!mounted) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      // User is signed in, navigate to HomeScreen
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 500),
+          pageBuilder:
+              (context, animation, secondaryAnimation) => const HomeScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeScaleTransition(animation: animation, child: child);
+          },
+        ),
+      );
+    } else {
+      // User is not signed in, navigate to SignInScreen
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 500),
+          pageBuilder:
+              (context, animation, secondaryAnimation) => const SignInScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeScaleTransition(animation: animation, child: child);
+          },
+        ),
+      );
+    }
   }
 
   @override

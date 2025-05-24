@@ -85,7 +85,11 @@ class CommentButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.chat_bubble_outline, color: Colors.grey, size: 24),
+              const Icon(
+                Icons.chat_bubble_outline,
+                color: Colors.grey,
+                size: 24,
+              ),
               const SizedBox(width: 4),
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 200),

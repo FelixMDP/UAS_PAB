@@ -32,6 +32,7 @@ dependencies:
   cached_network_image: ^3.4.1
   timeago: ^3.7.1
   flutter_local_notifications: ^19.2.1
+  photo_view: ^0.15.0
   
 dev_dependencies:
   flutter_test:

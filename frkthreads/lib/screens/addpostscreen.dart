@@ -84,13 +84,9 @@ class _AddPostScreenState extends State<AddPostScreen> {
   Future<void> _generateCategoryFromDescription(String description) async {
     setState(() => _isGenerating = true);
     try {
-      
       final String apiKey = 'AIzaSyB_B3rjunORQJQKVLysNw7d80B8IgOsuCU';
 
-      final model = GenerativeModel(
-        model: 'gemini-1.5-pro',
-        apiKey: apiKey,
-      );
+      final model = GenerativeModel(model: 'gemini-1.5-pro', apiKey: apiKey);
 
       final prompt = '''
 Berdasarkan deskripsi berikut, tentukan kategori konten ini. Hanya jawab dengan satu kata kategori saja seperti: makanan, hewan, perjalanan, aktivitas, hiburan, teknologi, dll.
@@ -100,24 +96,17 @@ Kategori:
 ''';
 
       final response = await model.generateContent([Content.text(prompt)]);
-
       final result = response.text?.trim().toLowerCase();
       if (result != null && result.isNotEmpty) {
         setState(() {
           _aiCategory = result;
         });
-      } else {
-        setState(() {
-          _aiCategory = 'tidak diketahui';
-        });
       }
     } catch (e) {
       debugPrint('Failed to determine category: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal mendapatkan kategori dari AI.')),
-        );
-      }
+      setState(() {
+        _aiCategory = null;
+      });
     } finally {
       if (mounted) setState(() => _isGenerating = false);
     }
@@ -182,11 +171,10 @@ Kategori:
       final userDoc =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final fullName = userDoc.data()?['fullName'] ?? 'Anonymous';
-
       final postData = {
         'image': _base64Image,
         'description': _descriptionController.text,
-        'category': _aiCategory ?? 'Tidak diketahui',
+        'category': _aiCategory, // Will be null if no category is detected
         'createdAt': DateTime.now().toIso8601String(),
         'latitude': _latitude,
         'longitude': _longitude,

@@ -49,23 +49,26 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 16),
-            _buildPosts(),
-          ],
+          children: [_buildHeader(), const SizedBox(height: 16), _buildPosts()],
         ),
       ),
     );
   }
+
   Widget _buildHeader() {
     return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('users').doc(widget.userId).get(),
+      future:
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(widget.userId)
+              .get(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator(color: _textLight));
+          return const Center(
+            child: CircularProgressIndicator(color: _textLight),
+          );
         }
-        
+
         final userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
         final fullName = userData['fullName'] ?? 'Username';
         final bio = userData['bio'] ?? '';
@@ -115,17 +118,21 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       },
     );
   }
+
   Widget _buildPosts() {
     return FutureBuilder<QuerySnapshot>(
-      future: FirebaseFirestore.instance
-          .collection('posts')
-          .where('userId', isEqualTo: widget.userId)
-          .orderBy('createdAt', descending: true)
-          .limit(10)
-          .get(),
+      future:
+          FirebaseFirestore.instance
+              .collection('posts')
+              .where('userId', isEqualTo: widget.userId)
+              .orderBy('createdAt', descending: true)
+              .limit(10)
+              .get(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator(color: _textLight));
+          return const Center(
+            child: CircularProgressIndicator(color: _textLight),
+          );
         }
 
         final posts = snapshot.data!.docs;
@@ -134,13 +141,11 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(16),
-              child: Text(
-                'No posts yet',
-                style: TextStyle(color: _textLight),
-              ),
+              child: Text('No posts yet', style: TextStyle(color: _textLight)),
             ),
           );
-        }        return ListView.builder(
+        }
+        return ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: posts.length,
@@ -184,7 +189,10 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                         ),
                         if (category != null)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: _accent.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(12),
@@ -204,7 +212,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                   // Post image
                   if (imageBase64 != null)
                     ClipRRect(
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(12),
+                      ),
                       child: Image.memory(
                         base64Decode(imageBase64),
                         width: double.infinity,
@@ -218,10 +228,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                       padding: const EdgeInsets.all(12),
                       child: Text(
                         description,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: _textDark,
-                        ),
+                        style: const TextStyle(fontSize: 14, color: _textDark),
                       ),
                     ),
                 ],

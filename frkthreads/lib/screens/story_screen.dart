@@ -11,17 +11,15 @@ class StoryScreen extends StatefulWidget {
   final Story story;
   final VoidCallback onComplete;
 
-  const StoryScreen({
-    Key? key,
-    required this.story,
-    required this.onComplete,
-  }) : super(key: key);
+  const StoryScreen({Key? key, required this.story, required this.onComplete})
+    : super(key: key);
 
   @override
   State<StoryScreen> createState() => _StoryScreenState();
 }
 
-class _StoryScreenState extends State<StoryScreen> with SingleTickerProviderStateMixin {
+class _StoryScreenState extends State<StoryScreen>
+    with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Timer _timer;
 
@@ -51,7 +49,7 @@ class _StoryScreenState extends State<StoryScreen> with SingleTickerProviderStat
           .collection('stories')
           .doc(widget.story.id)
           .update({
-            'viewedBy': FieldValue.arrayUnion([currentUser.uid])
+            'viewedBy': FieldValue.arrayUnion([currentUser.uid]),
           });
     } catch (e) {
       if (mounted) {
@@ -98,14 +96,16 @@ class _StoryScreenState extends State<StoryScreen> with SingleTickerProviderStat
               child: CachedNetworkImage(
                 imageUrl: widget.story.imageUrl,
                 fit: BoxFit.contain,
-                placeholder: (context, url) => const Center(
-                  child: CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                ),
-                errorWidget: (context, url, error) => const Center(
-                  child: Icon(Icons.error, color: Colors.white),
-                ),
+                placeholder:
+                    (context, url) => const Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                errorWidget:
+                    (context, url, error) => const Center(
+                      child: Icon(Icons.error, color: Colors.white),
+                    ),
               ),
             ),
             Positioned(
@@ -116,7 +116,8 @@ class _StoryScreenState extends State<StoryScreen> with SingleTickerProviderStat
                 children: [
                   CircleAvatar(
                     radius: 20,
-                    backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
+                    backgroundColor:
+                        isDark ? Colors.grey[800] : Colors.grey[200],
                     child: Text(
                       widget.story.userName[0].toUpperCase(),
                       style: TextStyle(
@@ -152,7 +153,9 @@ class _StoryScreenState extends State<StoryScreen> with SingleTickerProviderStat
                   return LinearProgressIndicator(
                     value: _animationController.value,
                     backgroundColor: Colors.grey[800],
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Colors.white,
+                    ),
                   );
                 },
               ),

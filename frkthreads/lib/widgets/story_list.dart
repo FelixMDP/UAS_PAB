@@ -21,15 +21,19 @@ class StoryList extends StatelessWidget {
       height: 100,
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('stories')
-            .where('createdAt',
-                isGreaterThan: DateTime.now()
-                    .subtract(const Duration(hours: 24))
-                    .toUtc()
-                    .millisecondsSinceEpoch)
-            .orderBy('createdAt', descending: true)
-            .snapshots(),
+        stream:
+            FirebaseFirestore.instance
+                .collection('stories')
+                .where(
+                  'createdAt',
+                  isGreaterThan:
+                      DateTime.now()
+                          .subtract(const Duration(hours: 24))
+                          .toUtc()
+                          .millisecondsSinceEpoch,
+                )
+                .orderBy('createdAt', descending: true)
+                .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
@@ -39,29 +43,31 @@ class StoryList extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final stories = snapshot.data!.docs
-              .map((doc) => Story.fromFirestore(doc))
-              .toList();
+          final stories =
+              snapshot.data!.docs
+                  .map((doc) => Story.fromFirestore(doc))
+                  .toList();
 
           final currentUser = FirebaseAuth.instance.currentUser;
           Story? userStory;
-try {
-  userStory = stories.firstWhere((story) => story.userId == currentUser?.uid);
-} catch (_) {
-  userStory = null;
-}
+          try {
+            userStory = stories.firstWhere(
+              (story) => story.userId == currentUser?.uid,
+            );
+          } catch (_) {
+            userStory = null;
+          }
 
-          final otherStories = stories
-              .where((story) => story.userId != currentUser?.uid)
-              .toList();
+          final otherStories =
+              stories
+                  .where((story) => story.userId != currentUser?.uid)
+                  .toList();
 
           if (stories.isEmpty) {
             // Instead of showing "No stories available", show only the add story button
             return ListView(
               scrollDirection: Axis.horizontal,
-              children: [
-                _buildAddStoryButton(context, isDark, null),
-              ],
+              children: [_buildAddStoryButton(context, isDark, null)],
             );
           }
 
@@ -73,59 +79,57 @@ try {
                 return _buildAddStoryButton(context, isDark, userStory);
               }
 
-          final story = stories[index - 1];
-          final isViewed = story.isViewed(currentUser?.uid ?? '');
+              final story = stories[index - 1];
+              final isViewed = story.isViewed(currentUser?.uid ?? '');
 
-          return GestureDetector(
-            onTap: () => _showStory(context, stories, index - 1),
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              child: Column(
-                children: [
-                  Container(
-                    width: 68,
-                    height: 68,
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-  shape: BoxShape.circle,
-  border: Border.all(
-    color: isViewed ? Colors.grey : Colors.green,
-    width: 3,
-  ),
-),
+              return GestureDetector(
+                onTap: () => _showStory(context, stories, index - 1),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 68,
+                        height: 68,
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: isViewed ? Colors.grey : Colors.green,
+                            width: 3,
+                          ),
+                        ),
 
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
+                        child: Container(
+                          decoration: BoxDecoration(shape: BoxShape.circle),
+                          child: CircleAvatar(
+                            backgroundImage: CachedNetworkImageProvider(
+                              story.imageUrl,
+                            ),
+                          ),
+                        ),
                       ),
-                      child: CircleAvatar(
-                        backgroundImage:
-                            CachedNetworkImageProvider(story.imageUrl),
+                      const SizedBox(height: 4),
+                      Text(
+                        story.userName.length > 10
+                            ? '${story.userName.substring(0, 7)}...'
+                            : story.userName,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
                       ),
-                    ),
+                      Text(
+                        timeago.format(story.createdAt),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isDark ? Colors.white38 : Colors.black38,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    story.userName.length > 10
-                        ? '${story.userName.substring(0, 7)}...'
-                        : story.userName,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isDark ? Colors.white70 : Colors.black87,
-                    ),
-                  ),
-                  Text(
-  timeago.format(story.createdAt),
-  style: TextStyle(
-    fontSize: 10,
-    color: isDark ? Colors.white38 : Colors.black38,
-  ),
-),
-
-                ],
-              ),
-            ),
-          );
+                ),
+              );
             },
           );
         },
@@ -133,7 +137,11 @@ try {
     );
   }
 
-  Widget _buildAddStoryButton(BuildContext context, bool isDark, Story? userStory) {
+  Widget _buildAddStoryButton(
+    BuildContext context,
+    bool isDark,
+    Story? userStory,
+  ) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(
@@ -151,19 +159,22 @@ try {
               height: 68,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: userStory == null
-                    ? (isDark ? Colors.grey[800] : Colors.grey[200])
-                    : Colors.red,
+                color:
+                    userStory == null
+                        ? (isDark ? Colors.grey[800] : Colors.grey[200])
+                        : Colors.red,
               ),
-              child: userStory == null
-                  ? Icon(
-                      Icons.add,
-                      color: isDark ? Colors.white : Colors.black87,
-                    )
-                  : CircleAvatar(
-                      backgroundImage:
-                          CachedNetworkImageProvider(userStory.imageUrl),
-                    ),
+              child:
+                  userStory == null
+                      ? Icon(
+                        Icons.add,
+                        color: isDark ? Colors.white : Colors.black87,
+                      )
+                      : CircleAvatar(
+                        backgroundImage: CachedNetworkImageProvider(
+                          userStory.imageUrl,
+                        ),
+                      ),
             ),
           ),
           const SizedBox(height: 4),
@@ -182,56 +193,63 @@ try {
   void _showStory(BuildContext context, List<Story> stories, int initialIndex) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => StoryScreen(
-          story: stories[initialIndex],
-          onComplete: () {
-            if (initialIndex < stories.length - 1) {
-              _showStory(context, stories, initialIndex + 1);
-            } else {
-              Navigator.of(context).pop();
-            }
-          },
-        ),
+        builder:
+            (context) => StoryScreen(
+              story: stories[initialIndex],
+              onComplete: () {
+                if (initialIndex < stories.length - 1) {
+                  _showStory(context, stories, initialIndex + 1);
+                } else {
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
       ),
     );
   }
+
   void _addStory(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Take Photo'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AddStoryScreen(isFromCamera: true),
-                  ),
-                );
-              },
+      builder:
+          (context) => Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('Take Photo'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) =>
+                                const AddStoryScreen(isFromCamera: true),
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('Choose from Gallery'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) =>
+                                const AddStoryScreen(isFromCamera: false),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Choose from Gallery'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const AddStoryScreen(isFromCamera: false),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 }

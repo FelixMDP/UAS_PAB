@@ -1,8 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:frkthreads/screens/postdetailscreen.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:frkthreads/providers/theme_provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -14,142 +20,180 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _uid = FirebaseAuth.instance.currentUser?.uid;
 
-  static const Color _background = Color(0xFF2D3B3A);
-  static const Color _accent = Color(0xFFB88C66);
-  static const Color _card = Color(0xFFEFEFEF);
-  static const Color _textLight = Colors.white;
-  static const Color _textDark = Colors.black87;
-
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     return Scaffold(
-      backgroundColor: _background,
-      appBar: AppBar(
-        backgroundColor: _background,
-        elevation: 0,
-        title: const Text('Profile', style: TextStyle(color: _textLight)),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 16),
-            _buildTabSection(),
-          ],
+      backgroundColor:
+          isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2),
+      body: SafeArea(
+        child: StreamBuilder<DocumentSnapshot>(
+          stream:
+              FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(_uid)
+                  .snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation(
+                    isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              );
+            }
+
+            final data = snapshot.data!.data() as Map<String, dynamic>? ?? {};
+            final fullName = data['fullName'] as String? ?? 'Anonymous';
+            final bio = data['bio'] as String? ?? 'No bio yet';
+
+            return CustomScrollView(
+              slivers: [
+                SliverAppBar(
+                  backgroundColor:
+                      isDark ? Colors.grey[900] : const Color(0xFFB88C66),
+                  toolbarHeight: 80,
+                  pinned: true,
+                  title: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundColor:
+                            isDark ? Colors.grey[800] : Colors.white,
+                        child:
+                            data['profileImage'] != null
+                                ? ClipOval(
+                                  child: Image.memory(
+                                    base64Decode(data['profileImage']!),
+                                    width: 60,
+                                    height: 60,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                                : Text(
+                                  fullName[0].toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    color:
+                                        isDark
+                                            ? Colors.white
+                                            : const Color(0xFFB88C66),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              fullName,
+                              style: TextStyle(
+                                color: isDark ? Colors.white : Colors.black87,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                            Text(
+                              bio,
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black54,
+                                fontSize: 14,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor:
+                                      isDark ? Colors.grey[800] : Colors.white,
+                                  foregroundColor:
+                                      isDark
+                                          ? Colors.white
+                                          : const Color(0xFFB88C66),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const EditProfileScreen(),
+                                    ),
+                                  );
+                                },
+                                child: const Text('Edit Profile'),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor:
+                                      isDark
+                                          ? Colors.blue[700]
+                                          : const Color(0xFF2D3B3A),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const SettingsScreen(),
+                                    ),
+                                  );
+                                },
+                                child: const Text('Settings'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        _buildTabSection(),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return StreamBuilder<DocumentSnapshot>(
-      stream:
-          FirebaseFirestore.instance.collection('users').doc(_uid).snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-        final fullName = userData['fullName'] ?? 'Username';
-        final bio = userData['bio'] ?? 'Bio';
-        final photoUrl = userData['photoUrl'];
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundColor: _card,
-                    backgroundImage:
-                        photoUrl != null ? NetworkImage(photoUrl) : null,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          fullName,
-                          style: const TextStyle(
-                            color: _textLight,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          bio,
-                          style: const TextStyle(
-                            color: _textLight,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        foregroundColor: _textDark,
-                        backgroundColor: _card,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const EditProfileScreen(),
-                          ),
-                        );
-                      },
-                      child: const Text('Edit Profile'),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        foregroundColor: _textDark,
-                        backgroundColor: _card,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SettingsScreen(),
-                          ),
-                        );
-                      },
-                      child: const Text('Setting'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   Widget _buildTabSection() {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
     return DefaultTabController(
       length: 2,
       child: Column(
@@ -157,24 +201,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: _accent,
-              borderRadius: BorderRadius.circular(8),
+              color: isDark ? Colors.grey[850] : Colors.white,
+              borderRadius: BorderRadius.circular(25),
+              boxShadow: [
+                BoxShadow(
+                  color: isDark ? Colors.black26 : Colors.black12,
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: TabBar(
-              labelColor: _background,
-              unselectedLabelColor: _textLight,
               indicator: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(25),
+                color: isDark ? Colors.blue[700] : const Color(0xFFB88C66),
               ),
-              tabs: const [Tab(text: 'Threads'), Tab(text: 'Media')],
+              labelColor: Colors.white,
+              unselectedLabelColor: isDark ? Colors.white60 : Colors.grey[600],
+              tabs: const [Tab(text: 'Posts'), Tab(text: 'Liked')],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           SizedBox(
             height: 400,
             child: TabBarView(
-              children: [_buildThreadsView(), _buildMediaView()],
+              children: [_buildPostsGrid(), _buildLikedPostsGrid()],
             ),
           ),
         ],
@@ -182,7 +233,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildThreadsView() {
+  Widget _buildPostsGrid() {
     return StreamBuilder<QuerySnapshot>(
       stream:
           FirebaseFirestore.instance
@@ -191,155 +242,107 @@ class _ProfileScreenState extends State<ProfileScreen> {
               .orderBy('createdAt', descending: true)
               .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error: ${snapshot.error}',
-              style: TextStyle(color: _textLight),
-            ),
-          );
-        }
-
         if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(color: _textLight),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
 
         final posts = snapshot.data!.docs;
-        if (posts.isEmpty) {
-          return const Center(
-            child: Text('No posts yet', style: TextStyle(color: _textLight)),
-          );
-        }
-
-        return ListView.builder(
-          itemCount: posts.length,
-          itemBuilder: (context, index) {
-            final post = posts[index].data() as Map<String, dynamic>;
-            return Card(
-              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              color: _card,
-              child: ListTile(
-                title: Text(
-                  post['description'] ?? '',
-                  style: const TextStyle(color: _textDark),
-                ),
-                subtitle: Text(
-                  _formatDate(post['createdAt']),
-                  style: TextStyle(color: _textDark.withOpacity(0.6)),
-                ),
-                leading:
-                    post['image'] != null
-                        ? CircleAvatar(
-                          backgroundImage: MemoryImage(
-                            base64Decode(post['image']),
-                          ),
-                        )
-                        : const CircleAvatar(child: Icon(Icons.article)),
-              ),
-            );
-          },
-        );
+        return _buildGrid(posts);
       },
     );
   }
 
-  Widget _buildMediaView() {
+  Widget _buildLikedPostsGrid() {
     return StreamBuilder<QuerySnapshot>(
       stream:
           FirebaseFirestore.instance
               .collection('posts')
-              .where('userId', isEqualTo: _uid)
-              .where('image', isNull: false)
-              .orderBy('createdAt', descending: true)
+              .where('likedBy', arrayContains: _uid)
               .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Text(
-              'Error: ${snapshot.error}',
-              style: TextStyle(color: _textLight),
-            ),
-          );
-        }
-
         if (!snapshot.hasData) {
-          return const Center(
-            child: CircularProgressIndicator(color: _textLight),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
 
         final posts = snapshot.data!.docs;
-        if (posts.isEmpty) {
-          return const Center(
-            child: Text('No media yet', style: TextStyle(color: _textLight)),
-          );
-        }
-
-        return GridView.builder(
-          padding: const EdgeInsets.all(8),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 4,
-            mainAxisSpacing: 4,
-          ),
-          itemCount: posts.length,
-          itemBuilder: (context, index) {
-            final post = posts[index].data() as Map<String, dynamic>;
-            final imageBase64 = post['image'] as String?;
-            if (imageBase64 == null) return const SizedBox.shrink();
-
-            return InkWell(
-              onTap: () => _showFullImage(context, imageBase64),
-              child: Hero(
-                tag: 'media_$index',
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    image: DecorationImage(
-                      image: MemoryImage(base64Decode(imageBase64)),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
+        return _buildGrid(posts);
       },
     );
   }
 
-  String _formatDate(dynamic date) {
-    if (date == null) return '';
-    if (date is Timestamp) {
-      return DateFormat('dd MMM yyyy').format(date.toDate());
-    }
-    if (date is String) {
-      return DateFormat('dd MMM yyyy').format(DateTime.parse(date));
-    }
-    return '';
-  }
+  Widget _buildGrid(List<DocumentSnapshot> posts) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
 
-  void _showFullImage(BuildContext context, String imageBase64) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder:
-            (context) => Scaffold(
-              backgroundColor: Colors.black,
-              body: GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: Center(
-                  child: InteractiveViewer(
-                    child: Image.memory(base64Decode(imageBase64)),
-                  ),
-                ),
+    if (posts.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.photo_library_outlined,
+              size: 64,
+              color: isDark ? Colors.white38 : Colors.grey,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No posts yet',
+              style: TextStyle(
+                color: isDark ? Colors.white38 : Colors.grey,
+                fontSize: 16,
               ),
             ),
+          ],
+        ),
+      );
+    }
+
+    return GridView.builder(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 2,
+        mainAxisSpacing: 2,
       ),
+      itemCount: posts.length,
+      itemBuilder: (context, index) {
+        final data = posts[index].data() as Map<String, dynamic>;
+        final imageBase64 = data['image'] as String?;
+
+        return Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child:
+                imageBase64 != null
+                    ? Image.memory(base64Decode(imageBase64), fit: BoxFit.cover)
+                    : Container(
+                      color: isDark ? Colors.grey[850] : Colors.grey[200],
+                      child: Icon(
+                        Icons.image_not_supported,
+                        color: isDark ? Colors.white38 : Colors.grey,
+                      ),
+                    ),
+          ),
+        );
+      },
     );
+  }
+
+  String _formatTimestamp(Timestamp timestamp) {
+    final date = timestamp.toDate();
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays > 0) {
+      return DateFormat.yMMMd().format(date);
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
   }
 }
 
@@ -356,6 +359,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   final _bioCtrl = TextEditingController();
   bool _isSaving = false;
   final _uid = FirebaseAuth.instance.currentUser?.uid;
+  String? _profileImageBase64;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -364,12 +369,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _loadUserData() async {
+    if (_uid == null) return;
+
     final doc =
         await FirebaseFirestore.instance.collection('users').doc(_uid).get();
     final data = doc.data();
     if (data != null) {
-      _fullNameCtrl.text = data['fullName'] ?? '';
-      _bioCtrl.text = data['bio'] ?? '';
+      setState(() {
+        _fullNameCtrl.text = data['fullName'] ?? '';
+        _bioCtrl.text = data['bio'] ?? '';
+        _profileImageBase64 = data['profileImage'];
+      });
     }
   }
 
@@ -378,35 +388,214 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     await FirebaseFirestore.instance.collection('users').doc(_uid).update({
       'fullName': _fullNameCtrl.text.trim(),
       'bio': _bioCtrl.text.trim(),
+      if (_profileImageBase64 != null) 'profileImage': _profileImageBase64,
     });
     if (!mounted) return;
     Navigator.pop(context);
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final pickedFile = await _picker.pickImage(
+        source: source,
+        imageQuality: 70,
+      );
+      if (pickedFile != null) {
+        final file = File(pickedFile.path);
+        final compressedImage = await FlutterImageCompress.compressWithFile(
+          file.path,
+          quality: 50,
+        );
+        if (compressedImage != null) {
+          setState(() {
+            _profileImageBase64 = base64Encode(compressedImage);
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+      }
+    }
+  }
+
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('Take a picture'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Choose from gallery'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Profile')),
-      body: Padding(
+      backgroundColor:
+          isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2),
+      appBar: AppBar(
+        title: Text(
+          'Edit Profile',
+          style: TextStyle(
+            color: isDark ? Colors.white : const Color(0xFF293133),
+          ),
+        ),
+        backgroundColor: isDark ? Colors.grey[900] : const Color(0xFFB88C66),
+        elevation: 0,
+      ),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
+            GestureDetector(
+              onTap: _showImageSourceDialog,
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundColor: isDark ? Colors.grey[800] : Colors.white,
+                    child:
+                        _profileImageBase64 != null
+                            ? ClipOval(
+                              child: Image.memory(
+                                base64Decode(_profileImageBase64!),
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                            : Icon(
+                              Icons.person,
+                              size: 50,
+                              color: isDark ? Colors.white : Colors.grey[600],
+                            ),
+                  ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundColor:
+                          isDark ? Colors.blue[700] : const Color(0xFF2D3B3A),
+                      child: Icon(
+                        Icons.camera_alt,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
             TextField(
               controller: _fullNameCtrl,
-              decoration: const InputDecoration(labelText: 'Full Name'),
+              style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+              decoration: InputDecoration(
+                labelText: 'Full Name',
+                labelStyle: TextStyle(
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(
+                    color: isDark ? Colors.white30 : Colors.black54,
+                  ),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _bioCtrl,
-              decoration: const InputDecoration(labelText: 'Bio'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey[800] : Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark ? Colors.white24 : Colors.grey[300]!,
+                ),
+              ),
+              child: TextField(
+                controller: _bioCtrl,
+                maxLines: 5,
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
+                  height: 1.5,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'Bio',
+                  alignLabelWithHint: true,
+                  labelStyle: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black87,
+                  ),
+                  contentPadding: const EdgeInsets.all(16),
+                  border: InputBorder.none,
+                  hintText: 'Tell us about yourself...',
+                  hintStyle: TextStyle(
+                    color: isDark ? Colors.white38 : Colors.grey[400],
+                  ),
+                ),
+              ),
             ),
-            const Spacer(),
-            ElevatedButton(
-              onPressed: _isSaving ? null : _saveProfile,
-              child:
-                  _isSaving
-                      ? const CircularProgressIndicator()
-                      : const Text('Save'),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: _isSaving ? null : _saveProfile,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor:
+                      isDark ? Colors.blue[700] : const Color(0xFF2D3B3A),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child:
+                    _isSaving
+                        ? SizedBox(
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              isDark ? Colors.white70 : Colors.white,
+                            ),
+                          ),
+                        )
+                        : const Text(
+                          'Save Changes',
+                          style: TextStyle(fontSize: 16, color: Colors.white),
+                        ),
+              ),
             ),
           ],
         ),

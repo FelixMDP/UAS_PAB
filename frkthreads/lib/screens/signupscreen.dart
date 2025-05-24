@@ -187,7 +187,8 @@ class SignUpScreenState extends State<SignUpScreen> {
     String? Function(String?)? validator,
     Color? textColor,
     Color? fieldColor,
-  }) {    return TextFormField(
+  }) {
+    return TextFormField(
       controller: controller,
       keyboardType: keyboardType,
       obscureText: obscureText,

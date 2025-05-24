@@ -15,12 +15,14 @@ class SignInScreen extends StatefulWidget {
   SignInScreenState createState() => SignInScreenState();
 }
 
-class SignInScreenState extends State<SignInScreen> with SingleTickerProviderStateMixin {
+class SignInScreenState extends State<SignInScreen>
+    with SingleTickerProviderStateMixin {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
-  bool _isPasswordVisible = false;  late AnimationController _animationController;
+  bool _isPasswordVisible = false;
+  late AnimationController _animationController;
   @override
   void initState() {
     super.initState();
@@ -43,7 +45,8 @@ class SignInScreenState extends State<SignInScreen> with SingleTickerProviderSta
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
-    final backgroundColor = isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2);
+    final backgroundColor =
+        isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2);
     final textColor = isDark ? Colors.white : const Color(0xFF293133);
     final inputFillColor = isDark ? Colors.grey[800] : Colors.white;
 
@@ -60,14 +63,21 @@ class SignInScreenState extends State<SignInScreen> with SingleTickerProviderSta
                   children: [
                     const SizedBox(height: 60),
                     ShaderMask(
-                      shaderCallback: (bounds) => LinearGradient(
-                        colors: isDark 
-                            ? [Colors.white, Colors.white70]
-                            : [const Color(0xFF293133), const Color(0xFF4A5568)],
-                      ).createShader(bounds),
+                      shaderCallback:
+                          (bounds) => LinearGradient(
+                            colors:
+                                isDark
+                                    ? [Colors.white, Colors.white70]
+                                    : [
+                                      const Color(0xFF293133),
+                                      const Color(0xFF4A5568),
+                                    ],
+                          ).createShader(bounds),
                       child: Shimmer.fromColors(
-                        baseColor: isDark ? Colors.white : const Color(0xFF293133),
-                        highlightColor: isDark ? Colors.grey[300]! : Colors.grey[600]!,
+                        baseColor:
+                            isDark ? Colors.white : const Color(0xFF293133),
+                        highlightColor:
+                            isDark ? Colors.grey[300]! : Colors.grey[600]!,
                         period: const Duration(seconds: 3),
                         child: Text(
                           'FRKTHREADS',
@@ -86,10 +96,11 @@ class SignInScreenState extends State<SignInScreen> with SingleTickerProviderSta
                       child: Column(
                         children: AnimationConfiguration.toStaggeredList(
                           duration: const Duration(milliseconds: 375),
-                          childAnimationBuilder: (widget) => SlideAnimation(
-                            verticalOffset: 50.0,
-                            child: FadeInAnimation(child: widget),
-                          ),
+                          childAnimationBuilder:
+                              (widget) => SlideAnimation(
+                                verticalOffset: 50.0,
+                                child: FadeInAnimation(child: widget),
+                              ),
                           children: [
                             TextFormField(
                               controller: _emailController,
@@ -101,7 +112,8 @@ class SignInScreenState extends State<SignInScreen> with SingleTickerProviderSta
                                 fillColor: inputFillColor,
                                 labelText: 'Email',
                                 labelStyle: TextStyle(color: textColor),
-                                floatingLabelBehavior: FloatingLabelBehavior.never,
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.never,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
                                   borderSide: BorderSide.none,
@@ -110,7 +122,10 @@ class SignInScreenState extends State<SignInScreen> with SingleTickerProviderSta
                                   borderRadius: BorderRadius.circular(30),
                                   borderSide: BorderSide(color: textColor),
                                 ),
-                                prefixIcon: Icon(Icons.person, color: textColor),
+                                prefixIcon: Icon(
+                                  Icons.person,
+                                  color: textColor,
+                                ),
                               ),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
@@ -130,7 +145,8 @@ class SignInScreenState extends State<SignInScreen> with SingleTickerProviderSta
                                 fillColor: inputFillColor,
                                 labelText: 'Password',
                                 labelStyle: TextStyle(color: textColor),
-                                floatingLabelBehavior: FloatingLabelBehavior.never,
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.never,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
                                   borderSide: BorderSide.none,
@@ -164,61 +180,93 @@ class SignInScreenState extends State<SignInScreen> with SingleTickerProviderSta
                             const SizedBox(height: 24),
                             _isLoading
                                 ? CircularProgressIndicator(
-                                    valueColor: AlwaysStoppedAnimation(textColor),
-                                  )
+                                  valueColor: AlwaysStoppedAnimation(textColor),
+                                )
                                 : SizedBox(
-                                    width: double.infinity,
-                                    height: 50,
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: isDark ? Colors.white : const Color(0xFF293133),
-                                        foregroundColor: isDark ? const Color(0xFF293133) : Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(30),
-                                        ),
-                                        elevation: 4,
+                                  width: double.infinity,
+                                  height: 50,
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          isDark
+                                              ? Colors.white
+                                              : const Color(0xFF293133),
+                                      foregroundColor:
+                                          isDark
+                                              ? const Color(0xFF293133)
+                                              : Colors.white,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(30),
                                       ),
-                                      onPressed: _signIn,
-                                      child: const Text(
-                                        'Login',
-                                        style: TextStyle(fontSize: 18),
-                                      ),
+                                      elevation: 4,
+                                    ),
+                                    onPressed: _signIn,
+                                    child: const Text(
+                                      'Login',
+                                      style: TextStyle(fontSize: 18),
                                     ),
                                   ),
+                                ),
                             const SizedBox(height: 24),
                             RichText(
                               text: TextSpan(
-                                style: TextStyle(fontSize: 16.0, color: textColor),
+                                style: TextStyle(
+                                  fontSize: 16.0,
+                                  color: textColor,
+                                ),
                                 children: [
                                   const TextSpan(text: 'Create new Account '),
                                   TextSpan(
                                     text: 'Sign Up',
                                     style: TextStyle(
-                                      color: isDark ? Colors.blue[300] : Colors.blue[700],
+                                      color:
+                                          isDark
+                                              ? Colors.blue[300]
+                                              : Colors.blue[700],
                                       fontWeight: FontWeight.bold,
                                       decoration: TextDecoration.underline,
                                     ),
-                                    recognizer: TapGestureRecognizer()
-                                      ..onTap = () {
-                                        Navigator.push(
-                                          context,
-                                          PageRouteBuilder(
-                                            pageBuilder: (context, animation, secondaryAnimation) =>
-                                                const SignUpScreen(),
-                                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                              var begin = const Offset(1.0, 0.0);
-                                              var end = Offset.zero;
-                                              var curve = Curves.easeInOutCubic;
-                                              var tween = Tween(begin: begin, end: end)
-                                                  .chain(CurveTween(curve: curve));
-                                              return SlideTransition(
-                                                position: animation.drive(tween),
-                                                child: child,
-                                              );
-                                            },
-                                          ),
-                                        );
-                                      },
+                                    recognizer:
+                                        TapGestureRecognizer()
+                                          ..onTap = () {
+                                            Navigator.push(
+                                              context,
+                                              PageRouteBuilder(
+                                                pageBuilder:
+                                                    (
+                                                      context,
+                                                      animation,
+                                                      secondaryAnimation,
+                                                    ) => const SignUpScreen(),
+                                                transitionsBuilder: (
+                                                  context,
+                                                  animation,
+                                                  secondaryAnimation,
+                                                  child,
+                                                ) {
+                                                  var begin = const Offset(
+                                                    1.0,
+                                                    0.0,
+                                                  );
+                                                  var end = Offset.zero;
+                                                  var curve =
+                                                      Curves.easeInOutCubic;
+                                                  var tween = Tween(
+                                                    begin: begin,
+                                                    end: end,
+                                                  ).chain(
+                                                    CurveTween(curve: curve),
+                                                  );
+                                                  return SlideTransition(
+                                                    position: animation.drive(
+                                                      tween,
+                                                    ),
+                                                    child: child,
+                                                  );
+                                                },
+                                              ),
+                                            );
+                                          },
                                   ),
                                 ],
                               ),

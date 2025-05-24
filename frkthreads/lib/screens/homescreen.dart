@@ -400,6 +400,7 @@ class PostListView extends StatelessWidget {
                                   MaterialPageRoute(
                                     builder:
                                         (context) => DetailScreen(
+                                          post: posts[index],
                                           postId: posts[index].id,
                                           imageBase64: imageBase64,
                                           description:
@@ -585,6 +586,7 @@ class PostListView extends StatelessWidget {
                                           MaterialPageRoute(
                                             builder:
                                                 (context) => DetailScreen(
+                                                  post: posts[index],
                                                   postId: posts[index].id,
                                                   imageBase64: data['image'],
                                                   description:
@@ -650,6 +652,7 @@ class PostListView extends StatelessWidget {
           MaterialPageRoute(
             builder:
                 (context) => DetailScreen(
+                  post: post,
                   postId: post.id,
                   imageBase64: imageBase64!,
                   description: data['description'],

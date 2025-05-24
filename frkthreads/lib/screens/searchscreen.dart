@@ -39,14 +39,16 @@ class _SearchScreenState extends State<SearchScreen> {
 
     try {
       // Get all users and filter them locally for case-insensitive search
-      final QuerySnapshot result = await FirebaseFirestore.instance
-          .collection('users')
-          .get();
-          
-      final filteredDocs = result.docs.where((doc) {
-        final fullName = (doc.data() as Map<String, dynamic>)['fullName'] as String? ?? '';
-        return fullName.toLowerCase().contains(query.toLowerCase());
-      }).toList();
+      final QuerySnapshot result =
+          await FirebaseFirestore.instance.collection('users').get();
+
+      final filteredDocs =
+          result.docs.where((doc) {
+            final fullName =
+                (doc.data() as Map<String, dynamic>)['fullName'] as String? ??
+                '';
+            return fullName.toLowerCase().contains(query.toLowerCase());
+          }).toList();
 
       setState(() {
         _searchResults = filteredDocs;
@@ -56,9 +58,9 @@ class _SearchScreenState extends State<SearchScreen> {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error searching users: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error searching users: $error')));
     }
   }
 
@@ -102,36 +104,42 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _cream),
-                    )
-                  : _searchResults.isEmpty
+              child:
+                  _isLoading
+                      ? const Center(
+                        child: CircularProgressIndicator(color: _cream),
+                      )
+                      : _searchResults.isEmpty
                       ? Center(
-                          child: Text(
-                            _searchController.text.isEmpty
-                                ? 'Search for users by name'
-                                : 'No users found',
-                            style: TextStyle(color: _cream.withOpacity(0.7)),
-                          ),
-                        )
+                        child: Text(
+                          _searchController.text.isEmpty
+                              ? 'Search for users by name'
+                              : 'No users found',
+                          style: TextStyle(color: _cream.withOpacity(0.7)),
+                        ),
+                      )
                       : ListView.builder(
-                          itemCount: _searchResults.length,
-                          itemBuilder: (context, index) {
-                            final userData = _searchResults[index].data() as Map<String, dynamic>;                            return ListTile(
-                              leading: const CircleAvatar(
-                                backgroundColor: _cream,
-                                child: Icon(Icons.person, color: _textDark),
+                        itemCount: _searchResults.length,
+                        itemBuilder: (context, index) {
+                          final userData =
+                              _searchResults[index].data()
+                                  as Map<String, dynamic>;
+                          return ListTile(
+                            leading: const CircleAvatar(
+                              backgroundColor: _cream,
+                              child: Icon(Icons.person, color: _textDark),
+                            ),
+                            title: Text(
+                              userData['fullName'] ?? 'Unknown User',
+                              style: const TextStyle(
+                                color: _cream,
+                                fontWeight: FontWeight.bold,
                               ),
-                              title: Text(
-                                userData['fullName'] ?? 'Unknown User',
-                                style: const TextStyle(
-                                  color: _cream,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: userData['bio'] != null && userData['bio'].toString().isNotEmpty
-                                  ? Text(
+                            ),
+                            subtitle:
+                                userData['bio'] != null &&
+                                        userData['bio'].toString().isNotEmpty
+                                    ? Text(
                                       userData['bio'],
                                       style: TextStyle(
                                         color: _cream.withOpacity(0.7),
@@ -139,17 +147,21 @@ class _SearchScreenState extends State<SearchScreen> {
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                     )
-                                  : null,                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => UserProfileScreen(userId: _searchResults[index].id),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
+                                    : null,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder:
+                                      (context) => UserProfileScreen(
+                                        userId: _searchResults[index].id,
+                                      ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      ),
             ),
           ],
         ),

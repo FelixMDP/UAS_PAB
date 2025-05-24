@@ -2,6 +2,7 @@
 
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,7 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:frkthreads/widgets/post_ui_components.dart';
-import 'package:frkthreads/services/local_notification_service.dart';
+import 'package:frkthreads/services/notification_service.dart';
 
 class DetailScreen extends StatefulWidget {
   final String imageBase64;
@@ -32,7 +33,7 @@ class DetailScreen extends StatefulWidget {
     required this.longitude,
     required this.category,
     required this.heroTag,
-    required this.postId,
+    required this.postId, required DocumentSnapshot<Object?> post,
   });
 
   @override
@@ -65,7 +66,9 @@ class _DetailScreenState extends State<DetailScreen> {
             final data = doc.data()!;
             setState(() {
               comments = List<String>.from(data['comments'] ?? []);
-              commentDetails = List<Map<String, dynamic>>.from(data['commentDetails'] ?? []);
+              commentDetails = List<Map<String, dynamic>>.from(
+                data['commentDetails'] ?? [],
+              );
               likes = data['likes'] ?? 0;
               isLiked = (data['likedBy'] ?? []).contains(
                 FirebaseAuth.instance.currentUser?.uid,
@@ -129,24 +132,26 @@ class _DetailScreenState extends State<DetailScreen> {
 
   Future<void> _toggleLike() async {
     if (_isLiking) return;
-    
+
     try {
       setState(() => _isLiking = true);
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return;
 
-      final postRef = FirebaseFirestore.instance.collection('posts').doc(widget.postId);
+      final postRef = FirebaseFirestore.instance
+          .collection('posts')
+          .doc(widget.postId);
       final doc = await postRef.get();
 
       if (!doc.exists) return;
 
       final data = doc.data()!;
       final likedBy = List<String>.from(data['likedBy'] ?? []);
-      
+
       if (likedBy.contains(uid)) {
         await postRef.update({
           'likes': FieldValue.increment(-1),
-          'likedBy': FieldValue.arrayRemove([uid])
+          'likedBy': FieldValue.arrayRemove([uid]),
         });
         setState(() {
           isLiked = false;
@@ -155,39 +160,28 @@ class _DetailScreenState extends State<DetailScreen> {
       } else {
         await postRef.update({
           'likes': FieldValue.increment(1),
-          'likedBy': FieldValue.arrayUnion([uid])
-        });        setState(() {
+          'likedBy': FieldValue.arrayUnion([uid]),
+        });
+        setState(() {
           isLiked = true;
           likes++;
-        });        // Add notification
+        }); // Add notification
         final postOwnerId = data['userId'];
         if (postOwnerId != uid) {
-          final currentUser = FirebaseAuth.instance.currentUser;
-          final userName = currentUser?.displayName ?? 'Anonymous';
-          
-          // Add to Firestore notifications
-          await FirebaseFirestore.instance.collection('notifications').add({
-            'type': 'like',
-            'fromUserId': uid,
-            'fromUserName': userName,
-            'toUserId': postOwnerId,
-            'postId': widget.postId,
-            'description': 'liked your post',
-            'createdAt': FieldValue.serverTimestamp(),
-            'isRead': false,
-          });          // Show local notification
-          await LocalNotificationService.instance.showLikeNotification(
-            username: userName,
+          await NotificationService.instance.createNotification(
+            type: 'like',
+            toUserId: postOwnerId,
             postId: widget.postId,
+            description: 'liked your post',
           );
         }
       }
     } catch (e) {
       debugPrint('Error toggling like: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating like: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating like: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLiking = false);
@@ -203,7 +197,8 @@ class _DetailScreenState extends State<DetailScreen> {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return;
 
-      final userDoc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final userDoc =
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
       final userName = userDoc.data()?['fullName'] ?? 'Anonymous';
 
       final commentData = {
@@ -217,29 +212,21 @@ class _DetailScreenState extends State<DetailScreen> {
           .collection('posts')
           .doc(widget.postId)
           .update({
-        'comments': FieldValue.arrayUnion([commentText]),
-        'commentDetails': FieldValue.arrayUnion([commentData])
-      });
-
-      // Add notification
-      final postRef = FirebaseFirestore.instance.collection('posts').doc(widget.postId);
+            'comments': FieldValue.arrayUnion([commentText]),
+            'commentDetails': FieldValue.arrayUnion([commentData]),
+          }); // Add notification
+      final postRef = FirebaseFirestore.instance
+          .collection('posts')
+          .doc(widget.postId);
       final doc = await postRef.get();
       final postData = doc.data() as Map<String, dynamic>;
-      final postOwnerId = postData['userId'];      if (postOwnerId != uid) {
-        // Add to Firestore notifications
-        await FirebaseFirestore.instance.collection('notifications').add({
-          'type': 'comment',
-          'fromUserId': uid,
-          'fromUserName': userName,
-          'toUserId': postOwnerId,
-          'postId': widget.postId,
-          'description': 'commented on your post: $commentText',
-          'createdAt': FieldValue.serverTimestamp(),
-          'isRead': false,
-        });        // Show local notification
-        await LocalNotificationService.instance.showCommentNotification(
-          username: userName,
+      final postOwnerId = postData['userId'];
+      if (postOwnerId != uid) {
+        await NotificationService.instance.createNotification(
+          type: 'comment',
+          toUserId: postOwnerId,
           postId: widget.postId,
+          description: 'commented on your post: $commentText',
         );
       }
 
@@ -248,9 +235,9 @@ class _DetailScreenState extends State<DetailScreen> {
     } catch (e) {
       debugPrint('Error adding comment: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error adding comment: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error adding comment: $e')));
       }
     } finally {
       if (mounted) setState(() => _isCommenting = false);
@@ -416,7 +403,8 @@ class _DetailScreenState extends State<DetailScreen> {
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancel'),
-            ),            TextButton(
+            ),
+            TextButton(
               onPressed: () async {
                 Navigator.pop(context);
                 await _deletePost();
@@ -434,188 +422,201 @@ class _DetailScreenState extends State<DetailScreen> {
       initialChildSize: 0.9,
       minChildSize: 0.5,
       maxChildSize: 0.95,
-      builder: (_, controller) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
+      builder:
+          (_, controller) => Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
-            // Header with comment count
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  TweenAnimationBuilder<int>(
-                    tween: IntTween(begin: 0, end: commentDetails.length),
-                    duration: const Duration(milliseconds: 500),
-                    builder: (context, value, child) => Text(
-                      'Comments ($value)',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+            child: Column(
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
                   ),
-                  const Spacer(),
-                  if (commentDetails.isNotEmpty)
-                    TextButton.icon(
-                      icon: const Icon(Icons.sort),
-                      label: const Text('Latest'),
-                      onPressed: () {
-                        // Implement sorting if needed
-                      },
-                    ),
-                ],
-              ),
-            ),
-            // Comments list
-            Expanded(
-              child: commentDetails.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.chat_bubble_outline,
-                              size: 64, color: Colors.grey[400]),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No comments yet\nBe the first to comment!',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 16,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: controller,
-                      itemCount: commentDetails.length,
-                      itemBuilder: (context, index) {
-                        final comment = commentDetails[index];
-                        final commentTime = DateTime.parse(comment['createdAt']);
-                        final timeAgo = _formatTimeAgo(commentTime);
-
-                        return Column(
-                          children: [
-                            ListTile(
-                              leading: const CircleAvatar(
-                                backgroundColor: Colors.blue,
-                                child: Icon(Icons.person, color: Colors.white),
+                ),
+                // Header with comment count
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      TweenAnimationBuilder<int>(
+                        tween: IntTween(begin: 0, end: commentDetails.length),
+                        duration: const Duration(milliseconds: 500),
+                        builder:
+                            (context, value, child) => Text(
+                              'Comments ($value)',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
                               ),
-                              title: Row(
+                            ),
+                      ),
+                      const Spacer(),
+                      if (commentDetails.isNotEmpty)
+                        TextButton.icon(
+                          icon: const Icon(Icons.sort),
+                          label: const Text('Latest'),
+                          onPressed: () {
+                            // Implement sorting if needed
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+                // Comments list
+                Expanded(
+                  child:
+                      commentDetails.isEmpty
+                          ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 64,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No comments yet\nBe the first to comment!',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                          : ListView.builder(
+                            controller: controller,
+                            itemCount: commentDetails.length,
+                            itemBuilder: (context, index) {
+                              final comment = commentDetails[index];
+                              final commentTime = DateTime.parse(
+                                comment['createdAt'],
+                              );
+                              final timeAgo = _formatTimeAgo(commentTime);
+
+                              return Column(
                                 children: [
-                                  Expanded(
-                                    child: Text(
-                                      comment['userName'] ?? 'Anonymous',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
+                                  ListTile(
+                                    leading: const CircleAvatar(
+                                      backgroundColor: Colors.blue,
+                                      child: Icon(
+                                        Icons.person,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            comment['userName'] ?? 'Anonymous',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          timeAgo,
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    subtitle: Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        comment['text'],
+                                        style: const TextStyle(
+                                          color: Colors.black87,
+                                          fontSize: 14,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                  Text(
-                                    timeAgo,
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 12,
-                                    ),
-                                  ),
+                                  if (index < commentDetails.length - 1)
+                                    const Divider(indent: 72),
                                 ],
-                              ),
-                              subtitle: Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Text(
-                                  comment['text'],
-                                  style: const TextStyle(
-                                    color: Colors.black87,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
+                              );
+                            },
+                          ),
+                ),
+                // Comment input
+                Padding(
+                  padding: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                    top: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _commentController,
+                          maxLines: null,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: InputDecoration(
+                            hintText: 'Add a comment...',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
                             ),
-                            if (index < commentDetails.length - 1)
-                              const Divider(indent: 72),
-                          ],
-                        );
-                      },
-                    ),
-            ),
-            // Comment input
-            Padding(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-                top: 8,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _commentController,
-                      maxLines: null,
-                      textCapitalization: TextCapitalization.sentences,
-                      decoration: InputDecoration(
-                        hintText: 'Add a comment...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide(color: Colors.grey[300]!),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: const BorderSide(color: Colors.blue),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            fillColor: Colors.grey[100],
+                            filled: true,
+                          ),
                         ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide(color: Colors.grey[300]!),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(color: Colors.blue),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        fillColor: Colors.grey[100],
-                        filled: true,
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Material(
+                        color: Colors.blue,
+                        shape: const CircleBorder(),
+                        clipBehavior: Clip.antiAlias,
+                        child: IconButton(
+                          icon:
+                              _isCommenting
+                                  ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                  : const Icon(Icons.send, color: Colors.white),
+                          onPressed: _isCommenting ? null : _addComment,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Material(
-                    color: Colors.blue,
-                    shape: const CircleBorder(),
-                    clipBehavior: Clip.antiAlias,
-                    child: IconButton(
-                      icon: _isCommenting
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor:
-                                    AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Icon(Icons.send, color: Colors.white),
-                      onPressed: _isCommenting ? null : _addComment,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -624,33 +625,35 @@ class _DetailScreenState extends State<DetailScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               widget.fullName,
               style: const TextStyle(
-                color: Colors.black,
+                color: Colors.black87,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               _timeAgo,
-              style: const TextStyle(
-                color: Colors.grey,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
           ],
         ),
         actions: [
           if (isPostOwner)
             IconButton(
-              icon: const Icon(Icons.delete),
+              icon: const Icon(Icons.delete, color: Colors.black87),
               onPressed: _showDeleteConfirmation,
             ),
         ],
@@ -659,7 +662,6 @@ class _DetailScreenState extends State<DetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Main image with hero animation
             Hero(
               tag: widget.heroTag,
               child: Container(
@@ -674,39 +676,30 @@ class _DetailScreenState extends State<DetailScreen> {
                 ),
               ),
             ),
-            
-            // Category and interaction buttons
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Category chip
-                  Wrap(
-                    children: [
-                      Chip(
-                        label: Text(
-                          widget.category,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        backgroundColor: Colors.blue,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                      ),
-                    ],
+                  Text(
+                    widget.category,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[600],
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  
-                  // Description
                   Text(
                     widget.description,
                     style: const TextStyle(
                       fontSize: 16,
                       height: 1.5,
+                      color: Colors.black87,
+                      letterSpacing: 0.2,
                     ),
                   ),
                   const SizedBox(height: 16),
-                  
-                  // Interaction buttons
                   Row(
                     children: [
                       AnimatedLikeButton(
@@ -732,7 +725,6 @@ class _DetailScreenState extends State<DetailScreen> {
                 ],
               ),
             ),
-            
             // Location card
             if (widget.latitude != 0 && widget.longitude != 0)
               Card(
@@ -769,10 +761,7 @@ class _DetailScreenState extends State<DetailScreen> {
                             ),
                           ),
                         ),
-                        const Icon(
-                          Icons.chevron_right,
-                          color: Colors.grey,
-                        ),
+                        const Icon(Icons.chevron_right, color: Colors.grey),
                       ],
                     ),
                   ),

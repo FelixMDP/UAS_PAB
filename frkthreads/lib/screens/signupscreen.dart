@@ -220,22 +220,39 @@ class SignUpScreenState extends State<SignUpScreen> {
 
     final email = _emailController.text.trim();
     final password = _passwordController.text;
+    final fullName = _fullNameController.text.trim(); // Ambil fullName
+
     setState(() => _isLoading = true);
 
     try {
+      // 1. Buat pengguna dengan email dan password
       final userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: email, password: password);
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .set({
-            'fullName': _fullNameController.text.trim(),
-            'email': email,
-            'createdAt': Timestamp.now(),
-          });
+      // 2. Setelah pengguna berhasil dibuat, update displayName mereka
+      if (userCredential.user != null) { // Pastikan user tidak null
+        await userCredential.user!.updateDisplayName(fullName); // <-- TAMBAHKAN BARIS INI
+        print('Display name updated to: $fullName'); // Opsional: untuk debugging
+      }
+
+      // 3. Simpan informasi tambahan pengguna ke Firestore (ini sudah Anda lakukan)
+      //    Penting: Pastikan userCredential.user!.uid tersedia
+      if (userCredential.user != null) { // Cek lagi untuk Firestore
+         await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .set({
+              'fullName': fullName, // Anda sudah menyimpan ini, bagus!
+              'email': email,
+              'createdAt': Timestamp.now(),
+              // Anda mungkin juga ingin menyimpan UID di sini jika diperlukan untuk query lain
+              'uid': userCredential.user!.uid, 
+            });
+      }
+
 
       if (!mounted) return;
+      // Navigasi ke HomeScreen setelah semua selesai
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -244,11 +261,14 @@ class SignUpScreenState extends State<SignUpScreen> {
     } on FirebaseAuthException catch (error) {
       _showErrorMessage(_getAuthErrorMessage(error.code));
     } catch (error) {
-      _showErrorMessage('An error occurred: $error');
+      _showErrorMessage('An error occurred during sign up: $error');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) { // Pastikan widget masih mounted sebelum setState
+         setState(() => _isLoading = false);
+      }
     }
   }
+
 
   void _showErrorMessage(String message) {
     ScaffoldMessenger.of(

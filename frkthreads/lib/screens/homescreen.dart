@@ -17,6 +17,8 @@ import 'notificationscreen.dart';
 import 'profilescreen.dart';
 import 'signinscreen.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -29,39 +31,23 @@ class _HomeScreenState extends State<HomeScreen>
   int _selectedIndex = 0;
   late final AnimationController _controller;
 
-  // Colors
-  static const backgroundColorLight = Color(0xFFF1E9D2);
-  static const backgroundColorDark = Color(0xFF293133);
-  static const primaryColorLight = Color(0xFFB88C66);
-  static const primaryColorDark = Color(0xFF2D3B3A);
-
-  // Helper to map _selectedIndex (0-3) to CurvedNavigationBar index (0-4)
-  int _mapSelectedIndexToNavBarIndex(int selectedIndex) {
-    if (selectedIndex >= 2) {
-      return selectedIndex + 1; // skip placeholder at index 2
-    }
-    return selectedIndex;
-  }
-
-  // Helper to map CurvedNavigationBar index (0-4) to _selectedIndex (0-3)
-  int _mapNavBarIndexToSelectedIndex(int navBarIndex) {
-    if (navBarIndex > 2) {
-      return navBarIndex - 1; // skip placeholder at index 2
-    } else if (navBarIndex == 2) {
-      // Placeholder tapped, ignore or keep current index
-      return _selectedIndex;
-    }
-    return navBarIndex;
-  }
-
   @override
   void initState() {
     super.initState();
+
     _controller = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
     );
     _controller.forward();
+
+    // Add post frame callback to check auth state and redirect if anonymous
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null || user.isAnonymous) {
+        Navigator.pushReplacementNamed(context, '/signin');
+      }
+    });
   }
 
   @override
@@ -76,6 +62,23 @@ class _HomeScreenState extends State<HomeScreen>
     NotificationScreen(),
     const ProfileScreen(),
   ];
+  int _mapSelectedIndexToNavBarIndex(int selectedIndex) {
+    if (selectedIndex >= 2) {
+      return selectedIndex + 1; // skip placeholder at index 2
+    }
+    return selectedIndex;
+  }
+
+  int _mapNavBarIndexToSelectedIndex(int navBarIndex) {
+    if (navBarIndex > 2) {
+      return navBarIndex - 1; // skip placeholder at index 2
+    } else if (navBarIndex == 2) {
+      // Placeholder tapped, ignore or keep current index
+      return _selectedIndex;
+    }
+    return navBarIndex;
+  }
+
   void _onItemTapped(int index) {
     // Map tapped index to _selectedIndex ignoring placeholder
     final mappedIndex = _mapNavBarIndexToSelectedIndex(index);

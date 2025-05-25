@@ -43,7 +43,8 @@ class _AddPostScreenState extends State<AddPostScreen> {
         setState(() {
           _image = File(pickedFile.path);
           _aiCategory = null;
-          _descriptionController.clear();
+          // Do not clear description on image pick to avoid losing user input
+          // _descriptionController.clear();
         });
         await _compressAndEncodeImage();
         final desc = _descriptionController.text.trim();
@@ -116,9 +117,11 @@ Kategori:
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Location services are disabled.')),
-        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Location services are disabled.')),
+          );
+        }
         return;
       }
 
@@ -127,9 +130,11 @@ Kategori:
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.deniedForever ||
             permission == LocationPermission.denied) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Location permissions are denied.')),
-          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Location permissions are denied.')),
+            );
+          }
           return;
         }
       }
@@ -138,23 +143,29 @@ Kategori:
         desiredAccuracy: LocationAccuracy.high,
       ).timeout(const Duration(seconds: 10));
 
-      setState(() {
-        _latitude = position.latitude;
-        _longitude = position.longitude;
-      });
+      if (mounted) {
+        setState(() {
+          _latitude = position.latitude;
+          _longitude = position.longitude;
+        });
+      }
     } catch (e) {
       debugPrint('Failed to retrieve location: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to retrieve location: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to retrieve location: $e')),
+        );
+      }
     }
   }
 
   Future<void> _submitPost() async {
     if (_base64Image == null || _descriptionController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add an image and description.')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please add an image and description.')),
+        );
+      }
       return;
     }
 
@@ -197,9 +208,11 @@ Kategori:
         (route) => false,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Post uploaded successfully!')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Post uploaded successfully!')),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

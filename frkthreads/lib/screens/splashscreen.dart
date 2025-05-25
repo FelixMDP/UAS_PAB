@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:frkthreads/screens/signinscreen.dart';
-import 'package:frkthreads/screens/homescreen.dart';
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:animations/animations.dart';
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -42,45 +39,20 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    _checkLoginStatus(); // Tambahkan logika pengecekan login
-  }
-
-  Future<void> _checkLoginStatus() async {
-    // Give animation time to play
-    await Future.delayed(const Duration(seconds: 2));
-
-    if (!mounted) return;
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      // User is signed in, navigate to HomeScreen
+    Future.delayed(const Duration(seconds: 2), () {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 500),
-          pageBuilder:
-              (context, animation, secondaryAnimation) => const HomeScreen(),
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const SignInScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeScaleTransition(animation: animation, child: child);
           },
         ),
       );
-    } else {
-      // User is not signed in, navigate to SignInScreen
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 500),
-          pageBuilder:
-              (context, animation, secondaryAnimation) => const SignInScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return FadeScaleTransition(animation: animation, child: child);
-          },
-        ),
-      );
-    }
+    });
   }
 
   @override

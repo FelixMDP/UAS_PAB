@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
+import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -9,32 +10,140 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:frkthreads/screens/homescreen.dart'; // Pastikan path ini sesuai
+import 'package:google_fonts/google_fonts.dart';
+import 'package:animate_do/animate_do.dart';
+import 'package:frkthreads/screens/homescreen.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:frkthreads/providers/theme_provider.dart';
 
 class AddPostScreen extends StatefulWidget {
   const AddPostScreen({super.key});
-
-  static const Color _background = Color(0xFF2D3B3A);
-  static const Color _accent = Color(0xFFB88C66);
-  static const Color _card = Color(0xFFEFEFEF);
 
   @override
   State<AddPostScreen> createState() => _AddPostScreenState();
 }
 
-class _AddPostScreenState extends State<AddPostScreen> {
+class _AddPostScreenState extends State<AddPostScreen> with SingleTickerProviderStateMixin {
   File? _image;
-  String? _base64Image;
-  final TextEditingController _descriptionController = TextEditingController();
-  final ImagePicker _picker = ImagePicker();
+  final _descriptionController = TextEditingController();
+  final _picker = ImagePicker();
   bool _isUploading = false;
-  double? _latitude;
-  double? _longitude;
+  bool _isGeneratingCategory = false;
+  String? _base64Image;
   String? _aiCategory;
-  bool _isGenerating = false;
-  GoogleMapController? _mapController;
+  double _latitude = 0.0;
+  double _longitude = 0.0;
   Timer? _debounce;
+  late final AnimationController _controller;
+  GoogleMapController? _mapController;
+  final Set<Marker> _markers = {};
+  late Color _background;
+  late Color _accent;
+  late Color _textLight;
+  late Color _textDark;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _initializeColors();
+    _getLocation();
+  }
+
+  void _initializeColors() {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final isDark = themeProvider.isDarkMode;
+    _updateColors(isDark);
+  }
+
+  void _updateColors(bool isDark) {
+    _background = isDark ? const Color(0xFF2D3B3A) : const Color(0xFFF1E9D2);
+    _accent = const Color(0xFFB88C66);
+    _textLight = isDark ? Colors.white : const Color(0xFF293133);
+    _textDark = isDark ? const Color(0xFF293133).withOpacity(0.7) : Colors.black87;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    _updateColors(themeProvider.isDarkMode);
+  }
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    _mapController?.dispose();
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget _buildGlassContainer({
+    required Widget child,
+    double height = 200,
+    double borderRadius = 20,
+    Color? overlayColor,
+  }) {
+    bool isCurrentlyDark = Provider.of<ThemeProvider>(context, listen: false).isDarkMode;
+
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        boxShadow: [
+          BoxShadow(
+            color: isCurrentlyDark 
+                ? Colors.black.withOpacity(0.2)
+                : _accent.withOpacity(0.1),
+            blurRadius: 10,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            decoration: BoxDecoration(
+              color: overlayColor ?? (isCurrentlyDark 
+                  ? Colors.white.withOpacity(0.1) 
+                  : Colors.white.withOpacity(0.8)),
+              borderRadius: BorderRadius.circular(borderRadius),
+              border: Border.all(
+                color: isCurrentlyDark 
+                    ? Colors.white.withOpacity(0.15)
+                    : _accent.withOpacity(0.2),
+                width: 1.5,
+              ),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: GoogleFonts.poppins(color: Colors.white),
+        ),
+        backgroundColor: Colors.red[400],
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -83,7 +192,7 @@ class _AddPostScreenState extends State<AddPostScreen> {
   }
 
   Future<void> _generateCategoryFromDescription(String description) async {
-    setState(() => _isGenerating = true);
+    setState(() => _isGeneratingCategory = true);
     try {
       final String apiKey = 'AIzaSyB_B3rjunORQJQKVLysNw7d80B8IgOsuCU';
 
@@ -109,7 +218,7 @@ Kategori:
         _aiCategory = null;
       });
     } finally {
-      if (mounted) setState(() => _isGenerating = false);
+      if (mounted) setState(() => _isGeneratingCategory = false);
     }
   }
 
@@ -226,61 +335,66 @@ Kategori:
   void _showImageSourceDialog() {
     showModalBottomSheet(
       context: context,
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Container(
-            color: AddPostScreen._card,
-            child: Wrap(
-              children: <Widget>[
-                ListTile(
-                  leading: const Icon(Icons.camera_alt),
-                  title: const Text('Take a picture'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickImage(ImageSource.camera);
-                  },
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: _background,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: _textLight.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.photo_library),
-                  title: const Text('Choose from gallery'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _pickImage(ImageSource.gallery);
-                  },
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Icon(Icons.camera_alt, color: _textLight),
+                title: Text(
+                  'Take a picture',
+                  style: GoogleFonts.poppins(color: _textLight),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.cancel),
-                  title: const Text('Cancel'),
-                  onTap: () => Navigator.pop(context),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.photo_library, color: _textLight),
+                title: Text(
+                  'Choose from gallery',
+                  style: GoogleFonts.poppins(color: _textLight),
                 ),
-              ],
-            ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
-
   Widget _buildMap() {
-    if (_latitude == null || _longitude == null) {
-      return const Center(
-        child: Text(
-          'Location not available',
-          style: TextStyle(color: Colors.white),
-        ),
-      );
-    }
     return SizedBox(
       height: 200,
       child: GoogleMap(
         initialCameraPosition: CameraPosition(
-          target: LatLng(_latitude!, _longitude!),
+          target: LatLng(_latitude, _longitude),
           zoom: 15,
         ),
         markers: {
           Marker(
             markerId: const MarkerId('currentLocation'),
-            position: LatLng(_latitude!, _longitude!),
+            position: LatLng(_latitude, _longitude),
           ),
         },
         onMapCreated: (controller) {
@@ -292,136 +406,201 @@ Kategori:
 
   @override
   Widget build(BuildContext context) {
+    bool isCurrentlyDark = Provider.of<ThemeProvider>(context).isDarkMode;
+
     return Scaffold(
-      backgroundColor: AddPostScreen._background,
+      backgroundColor: _background,
       appBar: AppBar(
-        title: const Text('Add Post'),
-        backgroundColor: AddPostScreen._accent,
-        foregroundColor: Colors.white,
+        backgroundColor: isCurrentlyDark ? _background : _accent,
+        elevation: 0,
+        title: Text(
+          'Create Post',
+          style: GoogleFonts.poppins(
+            color: isCurrentlyDark ? _textLight : Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        leading: IconButton(
+          icon: Icon(
+            Icons.arrow_back,
+            color: isCurrentlyDark ? _textLight : Colors.white,
+          ),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildMap(),
-            const SizedBox(height: 16),
-            GestureDetector(
-              onTap: _showImageSourceDialog,
-              child: Container(
-                height: 250,
-                decoration: BoxDecoration(
-                  color: AddPostScreen._card,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child:
-                    _image != null
-                        ? ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.file(
-                            _image!,
-                            height: 250,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                        : const Center(
-                          child: Icon(
-                            Icons.add_a_photo,
-                            size: 50,
-                            color: Colors.grey,
-                          ),
-                        ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            if (_isGenerating)
-              Shimmer.fromColors(
-                baseColor: Colors.grey[300]!,
-                highlightColor: Colors.grey[100]!,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      height: 20,
-                      width: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(8),
+        physics: const BouncingScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Map Container with glass effect
+              FadeInDown(
+                duration: const Duration(milliseconds: 500),
+                child: _buildGlassContainer(
+                  height: 200,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: GoogleMap(
+                      initialCameraPosition: CameraPosition(
+                        target: LatLng(_latitude, _longitude),
+                        zoom: 15,
                       ),
-                      margin: const EdgeInsets.only(bottom: 12),
-                    ),
-                    Container(
-                      height: 80,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            Offstage(
-              offstage: _isGenerating,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  TextField(
-                    controller: _descriptionController,
-                    textCapitalization: TextCapitalization.sentences,
-                    maxLines: 6,
-                    onEditingComplete: () {
-                      final desc = _descriptionController.text.trim();
-                      if (desc.isNotEmpty) {
-                        _generateCategoryFromDescription(desc);
-                      }
-                    },
-
-                    decoration: InputDecoration(
-                      hintText: 'Tambahkan deskripsi aktivitasmu...',
-                      filled: true,
-                      fillColor: AddPostScreen._card,
-                      border: const OutlineInputBorder(),
+                      markers: _markers,
+                      onMapCreated: (controller) {
+                        _mapController = controller;
+                      },
+                      myLocationEnabled: true,
+                      myLocationButtonEnabled: true,
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _isUploading ? null : _submitPost,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                textStyle: const TextStyle(fontSize: 16),
-                backgroundColor: AddPostScreen._accent,
+              const SizedBox(height: 16),
+
+              // Image Container with glass effect
+              FadeInDown(
+                delay: const Duration(milliseconds: 200),
+                child: GestureDetector(
+                  onTap: _showImageSourceDialog,
+                  child: _buildGlassContainer(
+                    height: 250,
+                    child: _image != null
+                        ? Hero(
+                            tag: 'previewImage',
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: Image.file(
+                                _image!,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                              ),
+                            ),
+                          )
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.add_a_photo,
+                                size: 50,
+                                color: _textLight.withOpacity(0.7),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Add Photo',
+                                style: GoogleFonts.poppins(
+                                  color: _textLight.withOpacity(0.7),
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                ),
               ),
-              child:
-                  _isUploading
+              const SizedBox(height: 16),
+
+              // Description Input with glass effect
+              FadeInDown(
+                delay: const Duration(milliseconds: 400),
+                child: _buildGlassContainer(
+                  height: 150,
+                  child: TextField(
+                    controller: _descriptionController,
+                    maxLines: 5,
+                    style: GoogleFonts.poppins(
+                      color: isCurrentlyDark ? _textLight : _textDark,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Share your thoughts...',
+                      hintStyle: GoogleFonts.poppins(
+                        color: (isCurrentlyDark ? _textLight : _textDark).withOpacity(0.7),
+                      ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.all(16),
+                    ),
+                    onChanged: (text) {
+                      if (_debounce?.isActive ?? false) _debounce!.cancel();
+                      _debounce = Timer(const Duration(milliseconds: 1000), () {
+                        _generateCategoryFromDescription(text);
+                      });
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Category Display with glass effect
+              if (_aiCategory != null || _isGeneratingCategory)
+                FadeInDown(
+                  delay: const Duration(milliseconds: 600),
+                  child: _buildGlassContainer(
+                    height: 50,
+                    child: Center(
+                      child: _isGeneratingCategory
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(_accent),
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.label, color: _accent, size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _aiCategory ?? '',
+                                  style: GoogleFonts.poppins(
+                                    color: isCurrentlyDark ? _textLight : _textDark,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 24),
+
+              // Submit Button
+              FadeInDown(
+                delay: const Duration(milliseconds: 800),
+                child: ElevatedButton(
+                  onPressed: _isUploading ? null : _submitPost,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _accent,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _isUploading
                       ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white,
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          'Share Post',
+                          style: GoogleFonts.poppins(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      )
-                      : const Text(
-                        'Post',
-                        style: TextStyle(color: Colors.white),
-                      ),
-            ),
-          ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _descriptionController.dispose();
-    _debounce?.cancel();
-    super.dispose();
   }
 }

@@ -852,8 +852,7 @@ class _PostCardState extends State<PostCard>
                     )
                   ]
                 : [],
-          ),
-          child: Column(
+          ),          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (widget.post['image'] != null && widget.post['image'].isNotEmpty)
@@ -907,6 +906,7 @@ class _PostCardState extends State<PostCard>
             ],
           ),
         ),
-      );
+      ),
+    );
   }
 }

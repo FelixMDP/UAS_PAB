@@ -109,6 +109,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
   Widget _buildTabButtons() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -135,6 +136,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
   Widget _buildTabButton({
     required String title,
     required IconData icon,
@@ -158,19 +160,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
               margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isSelected ? _accent.withOpacity(0.2) : Colors.transparent,
+                color:
+                    isSelected ? _accent.withOpacity(0.2) : Colors.transparent,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected ? _accent.withOpacity(0.3) : Colors.transparent,
+                  color:
+                      isSelected
+                          ? _accent.withOpacity(0.3)
+                          : Colors.transparent,
                   width: 1.5,
                 ),
-                boxShadow: isSelected ? [
-                  BoxShadow(
-                    color: _accent.withOpacity(0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ] : [],
+                boxShadow:
+                    isSelected
+                        ? [
+                          BoxShadow(
+                            color: _accent.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                        : [],
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -185,7 +194,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     title,
                     style: GoogleFonts.poppins(
                       color: isSelected ? _accent : _textLight.withOpacity(0.7),
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w500,
                       fontSize: 15,
                     ),
                   ),
@@ -301,7 +311,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             final bio = data['bio'] as String? ?? 'No bio yet';
 
             return SingleChildScrollView(
-              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewPadding.bottom + 16),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewPadding.bottom + 16,
+              ),
               child: Column(
                 children: [
                   _buildHeader(data, fullName, bio),
@@ -394,48 +406,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
-                      const SizedBox(height: 16),
-                      // Buttons Section
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: _accent.withOpacity(0.2),
-                                foregroundColor: _accent,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const EditProfileScreen(),
+                      const SizedBox(
+                        height: 16,
+                      ), // Buttons Section with fixed height
+                      SizedBox(
+                        height: 36, // Fixed height to prevent overflow
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _accent.withOpacity(0.2),
+                                  foregroundColor: _accent,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
                                   ),
-                                );
-                              },
-                              child: Text(
-                                'Edit Profile',
-                                style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.w600,
+                                  minimumSize: Size.zero,
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const EditProfileScreen(),
+                                    ),
+                                  );
+                                },
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    'Edit Profile',
+                                    style: GoogleFonts.poppins(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: _accent.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 36,
+                              height: 36,
+                              child: Material(
+                                color: _accent.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(8),
+                                  onTap: () => _showSettingsDialog(),
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.settings,
+                                      color: _accent,
+                                      size: 20,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                            child: IconButton(
-                              icon: Icon(Icons.settings, color: _accent),
-                              onPressed: () => _showSettingsDialog(),
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -545,10 +580,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             position: Tween<Offset>(
               begin: Offset(_selectedTab == 0 ? 0.1 : -0.1, 0),
               end: Offset.zero,
-            ).animate(CurvedAnimation(
-              parent: animation,
-              curve: Curves.easeOutCubic,
-            )),
+            ).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            ),
             child: child,
           ),
         );
@@ -755,7 +789,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           // Convert timestamp if needed
                           DateTime createdAt;
                           if (post['createdAt'] is Timestamp) {
-                            createdAt = (post['createdAt'] as Timestamp).toDate();
+                            createdAt =
+                                (post['createdAt'] as Timestamp).toDate();
                           } else if (post['createdAt'] is String) {
                             createdAt = DateTime.parse(post['createdAt']);
                           } else {
@@ -765,18 +800,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => DetailScreen(
-                                post: posts[index],
-                                postId: posts[index].id, 
-                                imageBase64: imageBase64 ?? '',
-                                description: post['description'] ?? '',
-                                createdAt: createdAt,
-                                fullName: post['fullName'] ?? 'Anonymous',
-                                latitude: post['latitude'] ?? 0.0,
-                                longitude: post['longitude'] ?? 0.0,
-                                category: post['category'] ?? 'Uncategorized',
-                                heroTag: 'liked_post_${posts[index].id}',
-                              ),
+                              builder:
+                                  (context) => DetailScreen(
+                                    post: posts[index],
+                                    postId: posts[index].id,
+                                    imageBase64: imageBase64 ?? '',
+                                    description: post['description'] ?? '',
+                                    createdAt: createdAt,
+                                    fullName: post['fullName'] ?? 'Anonymous',
+                                    latitude: post['latitude'] ?? 0.0,
+                                    longitude: post['longitude'] ?? 0.0,
+                                    category:
+                                        post['category'] ?? 'Uncategorized',
+                                    heroTag: 'liked_post_${posts[index].id}',
+                                  ),
                             ),
                           );
                         },
@@ -893,7 +930,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
 
   void _showSettingsDialog() {
     showDialog(

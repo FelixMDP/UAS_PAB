@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:frkthreads/screens/userprofilescreen.dart'; // Pastikan import ini benar
@@ -16,7 +17,7 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
-  // final _currentUserId = FirebaseAuth.instance.currentUser?.uid; // Tidak digunakan di _searchUsers versi ini
+  final _currentUserId = FirebaseAuth.instance.currentUser?.uid;
   List<DocumentSnapshot> _searchResults = [];
   bool _isLoading = false;
 
@@ -49,9 +50,9 @@ class _SearchScreenState extends State<SearchScreen> {
       final String lowerCaseQuery = query.toLowerCase();
       final filteredDocs = result.docs.where((doc) {
         // Filter agar pengguna saat ini tidak muncul di hasil pencarian (opsional, jika diinginkan)
-        // if (doc.id == _currentUserId) {
-        //   return false;
-        // }
+         if (doc.id == _currentUserId) {
+           return false;
+         }
         final fullName =
             (doc.data() as Map<String, dynamic>)['fullName'] as String? ?? '';
         return fullName.toLowerCase().contains(lowerCaseQuery);

@@ -301,6 +301,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             final bio = data['bio'] as String? ?? 'No bio yet';
 
             return SingleChildScrollView(
+              padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewPadding.bottom + 16),
               child: Column(
                 children: [
                   _buildHeader(data, fullName, bio),
@@ -326,7 +327,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: _buildGlassContainer(
           height: 180,
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [

@@ -109,32 +109,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
   Widget _buildTabButtons() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      height: 60,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: _buildGlassContainer(
-        height: 60,
-        borderRadius: 30,
-        child: Row(
-          children: [
-            _buildTabButton(
-              title: 'Posts',
-              icon: Icons.grid_on_rounded,
-              index: 0,
-            ),
-            _buildTabButton(
-              title: 'Liked',
-              icon: Icons.favorite_rounded,
-              index: 1,
-            ),
-          ],
+        height: 70,
+        borderRadius: 25,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            children: [
+              _buildTabButton(
+                title: 'Posts',
+                icon: Icons.grid_on_rounded,
+                index: 0,
+              ),
+              _buildTabButton(
+                title: 'Liked',
+                icon: Icons.favorite_rounded,
+                index: 1,
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
-
   Widget _buildTabButton({
     required String title,
     required IconData icon,
@@ -150,32 +150,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
           });
           HapticFeedback.lightImpact();
         },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          decoration: BoxDecoration(
-            color: isSelected ? _accent.withOpacity(0.2) : Colors.transparent,
-            borderRadius: BorderRadius.circular(30),
-          ),
-          margin: const EdgeInsets.all(5),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? _accent : _textLight.withOpacity(0.7),
-                size: 20,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isSelected ? _accent.withOpacity(0.2) : Colors.transparent,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected ? _accent.withOpacity(0.3) : Colors.transparent,
+                  width: 1.5,
+                ),
+                boxShadow: isSelected ? [
+                  BoxShadow(
+                    color: _accent.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ] : [],
               ),
-              const SizedBox(width: 8),
-              Text(
-                title,
-                style: GoogleFonts.poppins(
-                  color: isSelected ? _accent : _textLight.withOpacity(0.7),
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                  fontSize: 14,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    color: isSelected ? _accent : _textLight.withOpacity(0.7),
+                    size: 22,
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      color: isSelected ? _accent : _textLight.withOpacity(0.7),
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                      fontSize: 15,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isSelected)
+              Positioned(
+                bottom: 0,
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  margin: const EdgeInsets.only(bottom: 2),
+                  decoration: BoxDecoration(
+                    color: _accent,
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -512,9 +542,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           opacity: animation,
           child: SlideTransition(
             position: Tween<Offset>(
-              begin: const Offset(0.1, 0),
+              begin: Offset(_selectedTab == 0 ? 0.1 : -0.1, 0),
               end: Offset.zero,
-            ).animate(animation),
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            )),
             child: child,
           ),
         );
@@ -718,7 +751,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: InkWell(
                         onTap: () {
                           HapticFeedback.lightImpact();
-                          // Handle post tap
+                          // Convert timestamp if needed
+                          DateTime createdAt;
+                          if (post['createdAt'] is Timestamp) {
+                            createdAt = (post['createdAt'] as Timestamp).toDate();
+                          } else if (post['createdAt'] is String) {
+                            createdAt = DateTime.parse(post['createdAt']);
+                          } else {
+                            createdAt = DateTime.now();
+                          }
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => DetailScreen(
+                                post: posts[index],
+                                postId: posts[index].id, 
+                                imageBase64: imageBase64 ?? '',
+                                description: post['description'] ?? '',
+                                createdAt: createdAt,
+                                fullName: post['fullName'] ?? 'Anonymous',
+                                latitude: post['latitude'] ?? 0.0,
+                                longitude: post['longitude'] ?? 0.0,
+                                category: post['category'] ?? 'Uncategorized',
+                                heroTag: 'liked_post_${posts[index].id}',
+                              ),
+                            ),
+                          );
                         },
                         child:
                             imageBase64 != null && imageBase64.isNotEmpty
@@ -759,7 +818,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.photo_library_outlined,
+            _selectedTab == 0 ? Icons.post_add_rounded : Icons.favorite_border,
             size: 64,
             color: _textLight.withOpacity(0.3),
           ),
@@ -770,7 +829,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
               color: _textLight.withOpacity(0.7),
               fontSize: 16,
             ),
+            textAlign: TextAlign.center,
           ),
+          if (_selectedTab == 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Share your moments with others',
+                style: GoogleFonts.poppins(
+                  color: _textLight.withOpacity(0.5),
+                  fontSize: 14,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -822,21 +893,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showFollowers() {
-    if (_uid == null) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => FollowersScreen(userId: _uid)),
-    );
-  }
-
-  void _showFollowing() {
-    if (_uid == null) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => FollowingScreen(userId: _uid)),
-    );
-  }
 
   void _showSettingsDialog() {
     showDialog(

@@ -207,6 +207,20 @@ class SignInScreenState extends State<SignInScreen>
                                     ),
                                   ),
                                 ),
+                            const SizedBox(height: 16),
+                            TextButton(
+                              onPressed: _handleForgotPassword,
+                              child: Text(
+                                'Forgot Password?',
+                                style: TextStyle(
+                                  color:
+                                      isDark
+                                          ? Colors.blue[300]
+                                          : Colors.blue[700],
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
                             const SizedBox(height: 24),
                             RichText(
                               text: TextSpan(
@@ -214,6 +228,7 @@ class SignInScreenState extends State<SignInScreen>
                                   fontSize: 16.0,
                                   color: textColor,
                                 ),
+
                                 children: [
                                   const TextSpan(text: 'Create new Account '),
                                   TextSpan(
@@ -314,6 +329,29 @@ class SignInScreenState extends State<SignInScreen>
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _handleForgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      _showSnackBar('Please enter your email address');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (!mounted) return;
+      _showSnackBar('Password reset link sent to $email');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        _showSnackBar('No user found with this email');
+      } else {
+        _showSnackBar('Error: ${e.message}');
+      }
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   String _getAuthErrorMessage(String code) {

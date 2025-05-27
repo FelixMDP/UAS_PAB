@@ -33,6 +33,10 @@ dependencies:
   timeago: ^3.7.1
   flutter_local_notifications: ^19.2.1
   photo_view: ^0.15.0
+  google_fonts: ^6.2.1
+  glassmorphism_ui: ^0.3.0
+  animate_do: ^4.2.0
+  glassmorphism: ^3.0.0
   
 dev_dependencies:
   flutter_test:

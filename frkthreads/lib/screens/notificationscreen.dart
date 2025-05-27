@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:frkthreads/screens/postdetailscreen.dart';
+import 'package:frkthreads/screens/userprofilescreen.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
@@ -158,7 +159,18 @@ class NotificationScreen extends StatelessWidget {
                   createdAt: createdAt,
                   isDark: isDark,
                   onTap: () async {
-                    if (data['postId'] != null) {
+                    if (type == 'follow' && data['fromUserId'] != null) {
+                      // Navigate to user profile for follow notifications
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) =>
+                                  UserProfileScreen(userId: data['fromUserId']),
+                        ),
+                      );
+                    } else if (data['postId'] != null) {
+                      // Handle post-related notifications
                       final postDoc =
                           await FirebaseFirestore.instance
                               .collection('posts')
@@ -167,6 +179,17 @@ class NotificationScreen extends StatelessWidget {
 
                       if (postDoc.exists && context.mounted) {
                         final postData = postDoc.data()!;
+                        // Handle different timestamp formats
+                        DateTime postCreatedAt;
+                        final createdAtData = postData['createdAt'];
+                        if (createdAtData is Timestamp) {
+                          postCreatedAt = createdAtData.toDate();
+                        } else if (createdAtData is String) {
+                          postCreatedAt = DateTime.parse(createdAtData);
+                        } else {
+                          postCreatedAt = DateTime.now(); // fallback
+                        }
+
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -175,9 +198,7 @@ class NotificationScreen extends StatelessWidget {
                                   postId: data['postId'],
                                   imageBase64: postData['image'] ?? '',
                                   description: postData['description'] ?? '',
-                                  createdAt:
-                                      (postData['createdAt'] as Timestamp)
-                                          .toDate(),
+                                  createdAt: postCreatedAt,
                                   fullName: postData['fullName'] ?? 'Anonymous',
                                   latitude:
                                       (postData['latitude'] as num?)

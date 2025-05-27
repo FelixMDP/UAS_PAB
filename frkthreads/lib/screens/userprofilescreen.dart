@@ -553,7 +553,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           FirebaseFirestore.instance
               .collection('posts')
               .where('userId', isEqualTo: widget.userId)
-              .orderBy('timestamp', descending: true)
+              .orderBy('createdAt', descending: true)
               .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
@@ -597,7 +597,17 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           itemCount: posts.length,
           itemBuilder: (context, index) {
             final post = posts[index].data() as Map<String, dynamic>;
-            final timestamp = (post['timestamp'] as Timestamp).toDate();
+            // Handle different timestamp formats
+            DateTime timestamp;
+            final createdAtData = post['createdAt'];
+            if (createdAtData is Timestamp) {
+              timestamp = createdAtData.toDate();
+            } else if (createdAtData is String) {
+              timestamp = DateTime.parse(createdAtData);
+            } else {
+              timestamp = DateTime.now();
+            }
+
             return PostCard(
               post: post,
               timestamp: timestamp,
@@ -611,15 +621,75 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildLikedPosts() {
-    // Implementasi untuk menampilkan pos yang disukai
-    return Center(
-      child: Text(
-        'Liked Posts',
-        style: GoogleFonts.poppins(
-          color: _textLight.withOpacity(0.7),
-          fontSize: 16,
-        ),
-      ),
+    return StreamBuilder<QuerySnapshot>(
+      stream:
+          FirebaseFirestore.instance
+              .collection('posts')
+              .where('likedBy', arrayContains: widget.userId)
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return _buildPostsSkeleton();
+        }
+
+        final posts = snapshot.data!.docs;
+        if (posts.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.favorite_border,
+                  size: 64,
+                  color: _textLight.withOpacity(0.3),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No liked posts yet',
+                  style: GoogleFonts.poppins(
+                    color: _textLight.withOpacity(0.7),
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: 0.75,
+          ),
+          itemCount: posts.length,
+          itemBuilder: (context, index) {
+            final post = posts[index].data() as Map<String, dynamic>;
+            // Handle different timestamp formats
+            DateTime timestamp;
+            final createdAtData = post['createdAt'];
+            if (createdAtData is Timestamp) {
+              timestamp = createdAtData.toDate();
+            } else if (createdAtData is String) {
+              timestamp = DateTime.parse(createdAtData);
+            } else {
+              timestamp = DateTime.now();
+            }
+
+            return PostCard(
+              post: post,
+              timestamp: timestamp,
+              index: index,
+              getTimeAgo: _getTimeAgo,
+            );
+          },
+        );
+      },
     );
   }
 

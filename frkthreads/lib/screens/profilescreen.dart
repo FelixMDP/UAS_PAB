@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frkthreads/screens/editprofilescreen.dart';
+import 'package:frkthreads/screens/postdetailscreen.dart';
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -27,13 +28,40 @@ const Color _textDark = Colors.black87;
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _uid = FirebaseAuth.instance.currentUser?.uid;
-
   int _selectedTab = 0;
+
+  // Add stream controllers for followers and following counts
+  late Stream<int> _followerCountStream;
+  late Stream<int> _followingCountStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeStreams();
+  }
+
+  void _initializeStreams() {
+    if (_uid != null) {
+      // Stream for followers count
+      _followerCountStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(_uid)
+          .snapshots()
+          .map((doc) => (doc.data()?['followers'] as List?)?.length ?? 0);
+
+      // Stream for following count
+      _followingCountStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(_uid)
+          .snapshots()
+          .map((doc) => (doc.data()?['following'] as List?)?.length ?? 0);
+    }
+  }
 
   String _getTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-   
+
     if (difference.inSeconds < 60) {
       return '${difference.inSeconds} detik yang lalu';
     } else if (difference.inMinutes < 60) {
@@ -94,17 +122,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 150,
-                      height: 24,
-                      color: Colors.white,
-                    ),
+                    Container(width: 150, height: 24, color: Colors.white),
                     const SizedBox(height: 8),
-                    Container(
-                      width: 200,
-                      height: 16,
-                      color: Colors.white,
-                    ),
+                    Container(width: 200, height: 16, color: Colors.white),
                   ],
                 ),
               ),
@@ -146,7 +166,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required int index,
   }) {
     final isSelected = _selectedTab == index;
-    
+
     return Expanded(
       child: GestureDetector(
         onTap: () {
@@ -220,9 +240,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return Scaffold(
         backgroundColor:
             isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2),
-        body: const Center(
-          child: Text('User not logged in.'),
-        ),
+        body: const Center(child: Text('User not logged in.')),
       );
     }
 
@@ -230,10 +248,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: _background,
       body: SafeArea(
         child: StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(_uid)
-              .snapshots(),
+          stream:
+              FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(_uid)
+                  .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return SingleChildScrollView(
@@ -256,17 +275,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Text(
                   'User data not found. Try editing your profile.',
                   style: TextStyle(
-                    color: isDark ? Colors.white70 : Colors.black54
+                    color: isDark ? Colors.white70 : Colors.black54,
                   ),
                   textAlign: TextAlign.center,
-                )
+                ),
               );
             }
 
             final data = snapshot.data!.data() as Map<String, dynamic>;
-            final fullName = (data['fullName'] as String?)?.isNotEmpty == true
-                ? data['fullName'] as String
-                : (FirebaseAuth.instance.currentUser?.displayName ?? 'Anonymous');
+            final fullName =
+                (data['fullName'] as String?)?.isNotEmpty == true
+                    ? data['fullName'] as String
+                    : (FirebaseAuth.instance.currentUser?.displayName ??
+                        'Anonymous');
             final bio = data['bio'] as String? ?? 'No bio yet';
 
             return SingleChildScrollView(
@@ -312,21 +333,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ],
                     ),
-                    child: data['profileImage'] != null && 
-                          (data['profileImage'] as String).isNotEmpty
-                        ? ClipOval(
-                            child: Image.memory(
-                              base64Decode(data['profileImage']!),
-                              width: 80,
-                              height: 80,
-                              fit: BoxFit.cover,
+                    child:
+                        data['profileImage'] != null &&
+                                (data['profileImage'] as String).isNotEmpty
+                            ? ClipOval(
+                              child: Image.memory(
+                                base64Decode(data['profileImage']!),
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                            : CircleAvatar(
+                              radius: 40,
+                              backgroundColor: _card,
+                              child: Icon(
+                                Icons.person,
+                                size: 40,
+                                color: _textDark,
+                              ),
                             ),
-                          )
-                        : CircleAvatar(
-                            radius: 40,
-                            backgroundColor: _card,
-                            child: Icon(Icons.person, size: 40, color: _textDark),
-                          ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -404,37 +430,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: _buildGlassContainer(
           height: 110,
-          child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('posts')
-                .where('userId', isEqualTo: _uid)
-                .snapshots(),
-            builder: (context, snapshot) {
-              int postsCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
-              
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildStatItem(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              StreamBuilder<QuerySnapshot>(
+                stream:
+                    FirebaseFirestore.instance
+                        .collection('posts')
+                        .where('userId', isEqualTo: _uid)
+                        .snapshots(),
+                builder: (context, snapshot) {
+                  int postsCount =
+                      snapshot.hasData ? snapshot.data!.docs.length : 0;
+                  return _buildStatItem(
                     title: 'Posts',
                     value: postsCount.toString(),
                     icon: Icons.post_add,
-                  ),
-                  _buildDivider(),
-                  _buildStatItem(
+                  );
+                },
+              ),
+              _buildDivider(),
+              StreamBuilder<int>(
+                stream: _followerCountStream,
+                builder: (context, snapshot) {
+                  return _buildStatItem(
                     title: 'Followers',
-                    value: '0',
+                    value: '${snapshot.data ?? 0}',
                     icon: Icons.people,
-                  ),
-                  _buildDivider(),
-                  _buildStatItem(
+                  );
+                },
+              ),
+              _buildDivider(),
+              StreamBuilder<int>(
+                stream: _followingCountStream,
+                builder: (context, snapshot) {
+                  return _buildStatItem(
                     title: 'Following',
-                    value: '0',
+                    value: '${snapshot.data ?? 0}',
                     icon: Icons.person_add,
-                  ),
-                ],
-              );
-            },
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -442,11 +479,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildDivider() {
-    return Container(
-      height: 40,
-      width: 1,
-      color: _textLight.withOpacity(0.2),
-    );
+    return Container(height: 40, width: 1, color: _textLight.withOpacity(0.2));
   }
 
   Widget _buildTabContent() {
@@ -470,11 +503,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildPosts() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('posts')
-          .where('userId', isEqualTo: _uid)
-          .orderBy('timestamp', descending: true)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('posts')
+              .where('userId', isEqualTo: _uid)
+              .orderBy('timestamp', descending: true)
+              .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return _buildPostsSkeleton();
@@ -504,113 +538,128 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         }
 
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: GridView.builder(
-            padding: const EdgeInsets.only(top: 16),
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 0.75,
-            ),
-            itemCount: posts.length,
-            itemBuilder: (context, index) {
-              final post = posts[index].data() as Map<String, dynamic>;
-              final timestamp = (post['timestamp'] as Timestamp).toDate();
-              
-              return FadeInUp(
-                delay: Duration(milliseconds: index * 50),
-                duration: const Duration(milliseconds: 500),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: _card,
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          // Handle post tap
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (post['image'] != null) ...[
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
+        return SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children:
+                  posts.map((post) {
+                    final data = post.data() as Map<String, dynamic>;
+                    final timestamp = (data['timestamp'] as Timestamp).toDate();
+                    final imageBase64 = data['image'] as String?;
+                    final postId = post.id;
+
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder:
+                                (context) => DetailScreen(
+                                  post: post,
+                                  postId: postId,
+                                  imageBase64: data['image'],
+                                  description: data['description'] ?? '',
+                                  createdAt: DateTime.parse(data['createdAt']),
+                                  fullName: data['fullName'] ?? 'Anonymous',
+                                  latitude: data['latitude'] ?? 0.0,
+                                  longitude: data['longitude'] ?? 0.0,
+                                  category: data['category'] ?? 'Uncategorized',
+                                  heroTag: 'post_$postId',
+                                ),
+                          ),
+                        );
+                      },
+                      child: Card(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (imageBase64 != null && imageBase64.isNotEmpty)
+                              ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(12),
+                                ),
+                                child: AspectRatio(
+                                  aspectRatio: 16 / 9,
                                   child: Image.memory(
-                                    base64Decode(post['image']!),
-                                    height: 120,
-                                    width: double.infinity,
+                                    base64Decode(imageBase64),
                                     fit: BoxFit.cover,
                                   ),
                                 ),
-                                const SizedBox(height: 12),
-                              ],
-                              Text(
-                                post['description'] ?? '',
-                                style: GoogleFonts.poppins(
-                                  color: _textDark,
-                                  fontSize: 14,
-                                  height: 1.5,
-                                ),
-                                maxLines: 3,
-                                overflow: TextOverflow.ellipsis,
                               ),
-                              const Spacer(),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    _getTimeAgo(timestamp),
-                                    style: GoogleFonts.poppins(
-                                      color: _textDark.withOpacity(0.6),
-                                      fontSize: 10,
+                                    data['description'] ?? '',
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      height: 1.5,
                                     ),
                                   ),
+                                  const SizedBox(height: 8),
                                   Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Icon(
-                                        Icons.favorite_border,
-                                        size: 16,
-                                        color: _textDark.withOpacity(0.6),
-                                      ),
-                                      const SizedBox(width: 4),
                                       Text(
-                                        (post['likes'] ?? 0).toString(),
-                                        style: GoogleFonts.poppins(
-                                          color: _textDark.withOpacity(0.6),
+                                        _getTimeAgo(timestamp),
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
                                           fontSize: 12,
                                         ),
+                                      ),
+                                      Row(
+                                        children: [
+                                          Icon(
+                                            Icons.favorite,
+                                            size: 16,
+                                            color: Colors.grey[600],
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${data['likes'] ?? 0}',
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 16),
+                                          Icon(
+                                            Icons.chat_bubble_outline,
+                                            size: 16,
+                                            color: Colors.grey[600],
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${(data['comments'] ?? []).length}',
+                                            style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  ),
-                ),
-              );
-            },
+                    );
+                  }).toList(),
+            ),
           ),
         );
       },
@@ -620,16 +669,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildLikedPosts() {
     if (_uid == null) return _buildEmptyState("User not identified.");
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('posts')
-          .where('likedBy', arrayContains: _uid)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('posts')
+              .where('likedBy', arrayContains: _uid)
+              .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-           return _buildEmptyState("No liked posts yet");
+          return _buildEmptyState("No liked posts yet");
         }
 
         final posts = snapshot.data!.docs;
@@ -674,25 +724,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           HapticFeedback.lightImpact();
                           // Handle post tap
                         },
-                        child: imageBase64 != null && imageBase64.isNotEmpty
-                          ? Image.memory(
-                              base64Decode(imageBase64),
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) => Container(
-                                color: _card,
-                                child: Icon(
-                                  Icons.image_not_supported,
-                                  color: _textDark.withOpacity(0.3),
+                        child:
+                            imageBase64 != null && imageBase64.isNotEmpty
+                                ? Image.memory(
+                                  base64Decode(imageBase64),
+                                  fit: BoxFit.cover,
+                                  errorBuilder:
+                                      (context, error, stackTrace) => Container(
+                                        color: _card,
+                                        child: Icon(
+                                          Icons.image_not_supported,
+                                          color: _textDark.withOpacity(0.3),
+                                        ),
+                                      ),
+                                )
+                                : Container(
+                                  color: _card,
+                                  child: Icon(
+                                    Icons.image_not_supported,
+                                    color: _textDark.withOpacity(0.3),
+                                  ),
                                 ),
-                              ),
-                            )
-                          : Container(
-                              color: _card,
-                              child: Icon(
-                                Icons.image_not_supported,
-                                color: _textDark.withOpacity(0.3),
-                              ),
-                            ),
                       ),
                     ),
                   ),
@@ -727,51 +779,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
-  Widget _buildGrid(List<DocumentSnapshot> posts) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
-
-    return GridView.builder(
-      padding: const EdgeInsets.all(2),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 2,
-        mainAxisSpacing: 2,
-      ),
-      itemCount: posts.length,
-      itemBuilder: (context, index) {
-        final data = posts[index].data() as Map<String, dynamic>;
-        final imageBase64 = data['image'] as String?;
-
-        return Card(
-          elevation: isDark ? 1 : 2,
-          color: isDark ? Colors.grey[850] : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-          clipBehavior: Clip.antiAlias,
-          child: imageBase64 != null && imageBase64.isNotEmpty
-              ? Image.memory(
-                  base64Decode(imageBase64), 
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: isDark ? Colors.grey[800] : Colors.grey[200],
-                    child: Icon(
-                      Icons.broken_image, 
-                      color: isDark ? Colors.white38: Colors.grey,
-                    ),
-                  ),
-                )
-              : Container(
-                  color: isDark ? Colors.grey[800] : Colors.grey[200],
-                  child: Icon(
-                    Icons.image_not_supported,
-                    color: isDark ? Colors.white38 : Colors.grey,
-                  ),
-                ),
-        );
-      },
-    );
-  }
+  // Implementation moved to _buildPosts method
 
   Widget _buildStatItem({
     required String title,
@@ -787,11 +795,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: _textLight.withOpacity(0.9),
-              size: 22,
-            ),
+            Icon(icon, color: _textLight.withOpacity(0.9), size: 22),
             const SizedBox(height: 6),
             Text(
               value,
@@ -834,7 +838,8 @@ class PostCard extends StatefulWidget {
   State<PostCard> createState() => _PostCardState();
 }
 
-class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin {
+class _PostCardState extends State<PostCard>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   bool _isHovered = false;
@@ -846,9 +851,10 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
       duration: const Duration(milliseconds: 200),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1, end: 1.05).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1,
+      end: 1.05,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -859,6 +865,8 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
+    final imageBase64 = widget.post['image'] as String?;
+
     return FadeInUp(
       delay: Duration(milliseconds: widget.index * 50),
       duration: const Duration(milliseconds: 500),
@@ -880,9 +888,10 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: _isHovered 
-                      ? Colors.black.withOpacity(0.2)
-                      : Colors.black.withOpacity(0.1),
+                  color:
+                      _isHovered
+                          ? Colors.black.withOpacity(0.2)
+                          : Colors.black.withOpacity(0.1),
                   blurRadius: _isHovered ? 15 : 10,
                   offset: const Offset(0, 4),
                 ),
@@ -895,54 +904,79 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                 child: InkWell(
                   onTap: () {
                     HapticFeedback.lightImpact();
+                    // Handle post tap - you can add navigation to detail screen here
                   },
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.post['content'] ?? '',
-                          style: GoogleFonts.poppins(
-                            color: _textDark,
-                            fontSize: 14,
-                            height: 1.5,
-                          ),
-                          maxLines: 6,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const Spacer(),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              widget.getTimeAgo(widget.timestamp),
-                              style: GoogleFonts.poppins(
-                                color: _textDark.withOpacity(0.6),
-                                fontSize: 10,
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.favorite_border,
-                                  size: 16,
-                                  color: _textDark.withOpacity(0.6),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '0',
-                                  style: GoogleFonts.poppins(
-                                    color: _textDark.withOpacity(0.6),
-                                    fontSize: 12,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (imageBase64 != null && imageBase64.isNotEmpty)
+                        AspectRatio(
+                          aspectRatio: 1,
+                          child: Image.memory(
+                            base64Decode(imageBase64),
+                            fit: BoxFit.cover,
+                            errorBuilder:
+                                (context, error, stackTrace) => Container(
+                                  color: _card,
+                                  child: Icon(
+                                    Icons.broken_image,
+                                    color: _textDark.withOpacity(0.3),
                                   ),
                                 ),
-                              ],
-                            ),
-                          ],
+                          ),
                         ),
-                      ],
-                    ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.post['description'] ?? '',
+                                style: GoogleFonts.poppins(
+                                  color: _textDark,
+                                  fontSize: 14,
+                                  height: 1.5,
+                                ),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const Spacer(),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    widget.getTimeAgo(widget.timestamp),
+                                    style: GoogleFonts.poppins(
+                                      color: _textDark.withOpacity(0.6),
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.favorite_border,
+                                        size: 16,
+                                        color: _textDark.withOpacity(0.6),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        (widget.post['likes'] ?? 0).toString(),
+                                        style: GoogleFonts.poppins(
+                                          color: _textDark.withOpacity(0.6),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

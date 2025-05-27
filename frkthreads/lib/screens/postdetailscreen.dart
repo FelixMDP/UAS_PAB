@@ -33,7 +33,8 @@ class DetailScreen extends StatefulWidget {
     required this.longitude,
     required this.category,
     required this.heroTag,
-    required this.postId, required DocumentSnapshot<Object?> post,
+    required this.postId,
+    required DocumentSnapshot<Object?> post,
   });
 
   @override
@@ -620,6 +621,141 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+  Widget _buildLikesSheet() {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder:
+          (context, controller) => Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  height: 4,
+                  width: 40,
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      TweenAnimationBuilder<int>(
+                        tween: IntTween(begin: 0, end: likes),
+                        duration: const Duration(milliseconds: 500),
+                        builder:
+                            (context, value, child) => Text(
+                              'Likes ($value)',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: StreamBuilder<DocumentSnapshot>(
+                    stream:
+                        FirebaseFirestore.instance
+                            .collection('posts')
+                            .doc(widget.postId)
+                            .snapshots(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final data =
+                          snapshot.data!.data() as Map<String, dynamic>;
+                      final List<String> likedBy = List<String>.from(
+                        data['likedBy'] ?? [],
+                      );
+
+                      if (likedBy.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.favorite_outline,
+                                size: 64,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No likes yet\nBe the first to like!',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return FutureBuilder<List<DocumentSnapshot>>(
+                        future: Future.wait(
+                          likedBy.map(
+                            (uid) =>
+                                FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(uid)
+                                    .get(),
+                          ),
+                        ),
+                        builder: (context, userSnapshots) {
+                          if (!userSnapshots.hasData) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+
+                          final users = userSnapshots.data!;
+                          return ListView.builder(
+                            controller: controller,
+                            itemCount: users.length,
+                            itemBuilder: (context, index) {
+                              final userData =
+                                  users[index].data() as Map<String, dynamic>?;
+                              final userName =
+                                  userData?['fullName'] ?? 'Anonymous';
+
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.blue,
+                                  child: Text(
+                                    userName[0].toUpperCase(),
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                                title: Text(userName),
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -707,6 +843,14 @@ class _DetailScreenState extends State<DetailScreen> {
                         isLoading: _isLiking,
                         likes: likes,
                         onTap: _toggleLike,
+                        showLikesList: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (context) => _buildLikesSheet(),
+                          );
+                        },
                       ),
                       const SizedBox(width: 16),
                       CommentButton(
@@ -720,6 +864,7 @@ class _DetailScreenState extends State<DetailScreen> {
                           );
                         },
                       ),
+                      const SizedBox(width: 16),
                     ],
                   ),
                 ],

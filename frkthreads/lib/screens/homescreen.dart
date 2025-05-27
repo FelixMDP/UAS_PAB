@@ -30,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
   late final AnimationController _controller;
+  final String? _currentUserUID = FirebaseAuth.instance.currentUser?.uid;
 
   @override
   void initState() {
@@ -115,11 +116,11 @@ class _HomeScreenState extends State<HomeScreen>
         title: ShaderMask(
           shaderCallback:
               (bounds) => LinearGradient(
-                colors:
-                    isDark
-                        ? [Colors.white, Colors.white70]
-                        : [Colors.white, Colors.white.withOpacity(0.8)],
-              ).createShader(bounds),
+            colors:
+                isDark
+                    ? [Colors.white, Colors.white70]
+                    : [Colors.white, Colors.white.withOpacity(0.8)],
+          ).createShader(bounds),
           child: const Text(
             'FRKTHREADS',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
@@ -133,14 +134,100 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             onPressed: () => themeProvider.toggleTheme(),
           ),
-          const SizedBox(width: 10),
-          CircleAvatar(
-            backgroundColor: isDark ? Colors.grey[800] : Colors.white,
-            radius: 16,
-          ),
-          const SizedBox(width: 10),
+          // const SizedBox(width: 10), // Dihapus karena Padding akan menangani jarak
+
+          // --- Implementasi StreamBuilder untuk CircleAvatar Foto Profil ---
+          if (_currentUserUID != null)
+            StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(_currentUserUID)
+                  .snapshots(),
+              builder: (context, AsyncSnapshot<DocumentSnapshot> snapshot) {
+                String? profileImageBase64;
+                String initialLetter = '?'; // Default jika tidak ada nama
+
+                if (snapshot.connectionState == ConnectionState.active) { // Cek jika stream aktif
+                  if (snapshot.hasData && snapshot.data!.exists) {
+                    final userData = snapshot.data!.data() as Map<String, dynamic>?;
+                    if (userData != null) {
+                      profileImageBase64 = userData['profileImage'] as String?;
+                      final fullName = (userData['fullName'] as String?)?.isNotEmpty == true
+                          ? userData['fullName'] as String
+                          : (FirebaseAuth.instance.currentUser?.displayName ?? '');
+                      if (fullName.isNotEmpty) {
+                        initialLetter = fullName[0].toUpperCase();
+                      }
+                    }
+                  } else if (FirebaseAuth.instance.currentUser?.displayName?.isNotEmpty == true) {
+                    // Fallback ke displayName dari Auth jika Firestore doc belum ada atau fullName kosong
+                    initialLetter = FirebaseAuth.instance.currentUser!.displayName![0].toUpperCase();
+                  }
+                }
+                // Saat loading atau error, bisa tampilkan placeholder sederhana
+                // atau biarkan CircleAvatar menampilkan initialLetter default / background color.
+
+                return GestureDetector(
+                  onTap: () {
+                    // Navigasi ke ProfileScreen saat CircleAvatar di-tap
+                    // Jika Anda ingin mengganti tab di BottomNavBar ke ProfileScreen (indeks 3):
+                    if (_selectedIndex != 3) { // Cek agar tidak setState jika sudah di tab profil
+                       _onItemTapped(_mapSelectedIndexToNavBarIndex(3)); // map 3 ke nav bar index
+                    }
+                    // Atau jika ingin push halaman ProfileScreen secara independen:
+                    // Navigator.push(
+                    //   context,
+                    //   MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                    // );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 12.0, left: 4.0), // Jarak avatar
+                    child: CircleAvatar(
+                      radius: 18, // Ukuran disesuaikan
+                      backgroundColor: isDark ? Colors.grey[700] : Colors.white.withOpacity(0.7),
+                      child: (profileImageBase64 != null && profileImageBase64.isNotEmpty)
+                          ? ClipOval(
+                              child: Image.memory(
+                                base64Decode(profileImageBase64),
+                                width: 36, // 2x radius
+                                height: 36,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  // Fallback jika error decode gambar
+                                  return Text(
+                                    initialLetter,
+                                    style: TextStyle(
+                                      color: isDark ? Colors.white70 : Colors.black54,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  );
+                                },
+                              ),
+                            )
+                          : Text( // Tampilkan inisial jika tidak ada gambar atau saat loading
+                              initialLetter,
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black54,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                );
+              },
+            )
+          else // Jika tidak ada user login (currentUserUID null), tampilkan placeholder
+            Padding(
+              padding: const EdgeInsets.only(right: 12.0, left: 4.0),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: isDark ? Colors.grey[700] : Colors.white.withOpacity(0.7),
+                child: Icon(Icons.person, size: 20, color: isDark ? Colors.white70 : Colors.black54),
+              ),
+            ),
+          // const SizedBox(width: 10), // Dihapus
         ],
-        elevation: 0,
+        elevation: 2, // Anda bisa sesuaikan elevasinya
       ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 300),

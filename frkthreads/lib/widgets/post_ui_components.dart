@@ -5,6 +5,7 @@ class AnimatedLikeButton extends StatelessWidget {
   final bool isLoading;
   final int likes;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   const AnimatedLikeButton({
     Key? key,
@@ -12,6 +13,7 @@ class AnimatedLikeButton extends StatelessWidget {
     required this.isLoading,
     required this.likes,
     required this.onTap,
+    this.onLongPress, required Null Function() showLikesList,
   }) : super(key: key);
 
   @override
@@ -20,6 +22,7 @@ class AnimatedLikeButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: isLoading ? null : onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(20),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),

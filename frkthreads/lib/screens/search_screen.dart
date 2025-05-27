@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,7 +8,7 @@ import 'package:frkthreads/providers/theme_provider.dart';
 import 'package:frkthreads/screens/detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({Key? key}) : super(key: key);
+  const SearchScreen({super.key});
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -38,29 +39,29 @@ class _SearchScreenState extends State<SearchScreen> {
     });
 
     try {
-      // Search for users whose fullName contains the query
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .where('fullName', isGreaterThanOrEqualTo: query)
-          .where('fullName', isLessThan: query + 'z')
-          .get();
+      // Get all users and filter them locally for case-insensitive search
+      final QuerySnapshot result =
+          await FirebaseFirestore.instance.collection('users').get();
 
-      // Filter out current user from results
+      final filteredDocs =
+          result.docs.where((doc) {
+            final fullName =
+                (doc.data() as Map<String, dynamic>)['fullName'] as String? ??
+                '';
+            return fullName.toLowerCase().contains(query.toLowerCase());
+          }).toList();
+
       setState(() {
-        _searchResults = querySnapshot.docs
-            .where((doc) => doc.id != _currentUserId)
-            .toList();
+        _searchResults = filteredDocs;
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (error) {
       setState(() {
         _isLoading = false;
       });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error searching users: $e')),
-        );
-      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error searching users: $error')));
     }
   }
 
@@ -76,6 +77,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
     // Show bottom sheet with user's posts
     showModalBottomSheet(
+      // ignore: use_build_context_synchronously
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -171,7 +173,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           itemCount: postsSnapshot.docs.length,
                           itemBuilder: (context, index) {
                             final post = postsSnapshot.docs[index];
-                            final postData = post.data() as Map<String, dynamic>;
+                            final postData = post.data();
                             final imageBase64 = postData['image'] as String?;
 
                             return GestureDetector(
@@ -267,56 +269,72 @@ class _SearchScreenState extends State<SearchScreen> {
                       : ListView.builder(
                           itemCount: _searchResults.length,
                           itemBuilder: (context, index) {
-                            final userData = _searchResults[index].data()
-                                as Map<String, dynamic>;
-                            final fullName =
-                                userData['fullName'] as String? ?? 'Anonymous';
-                            final bio = userData['bio'] as String? ?? 'No bio yet';
-                            final profileImage =
-                                userData['profileImage'] as String?;
+                            // ... (kode Anda yang lain di dalam itemBuilder ListView.builder)
 
-                            return ListTile(
-                              onTap: () =>
-                                  _viewUserProfile(context, _searchResults[index]),
-                              leading: CircleAvatar(
-                                backgroundColor:
-                                    isDark ? Colors.grey[800] : Colors.white,
-                                child: profileImage != null
-                                    ? ClipOval(
-                                        child: Image.memory(
-                                          base64Decode(profileImage),
-                                          width: 40,
-                                          height: 40,
-                                          fit: BoxFit.cover,
-                                        ),
-                                      )
-                                    : Text(
-                                        fullName[0].toUpperCase(),
-                                        style: TextStyle(
-                                          color: isDark
-                                              ? Colors.white
-                                              : const Color(0xFFB88C66),
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                              ),
-                              title: Text(
-                                fullName,
-                                style: TextStyle(
-                                  color: isDark ? Colors.white : Colors.black87,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: Text(
-                                bio,
-                                style: TextStyle(
-                                  color:
-                                      isDark ? Colors.white60 : Colors.black54,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
+final userData = _searchResults[index].data()
+    as Map<String, dynamic>;
+final fullName =
+    userData['fullName'] as String? ?? 'Anonymous';
+final bio = userData['bio'] as String? ?? 'No bio yet';
+final profileImageBase64 =
+    userData['profileImage'] as String?;
+    final initialLetter = fullName.isNotEmpty ? fullName[0].toUpperCase() : '?';
+
+    
+
+return ListTile(
+  onTap: () => _viewUserProfile(context, _searchResults[index]),
+  leading: Builder(
+    builder: (_) {
+      Uint8List? imageBytes;
+      if (profileImageBase64 != null && profileImageBase64.isNotEmpty) {
+        try {
+          imageBytes = base64Decode(profileImageBase64);
+        } catch (e) {
+          debugPrint('Invalid base64 profile image: $e');
+        }
+      }
+
+      return CircleAvatar(
+        radius: 18,
+        backgroundColor: isDark ? Colors.grey[700] : Colors.white.withOpacity(0.7),
+        child: imageBytes != null
+            ? ClipOval(
+                child: Image.memory(
+                  imageBytes,
+                  width: 36,
+                  height: 36,
+                  fit: BoxFit.cover,
+                ),
+              )
+            : Text(
+                initialLetter,
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+      );
+    },
+  ),
+  title: Text(
+    fullName,
+    style: TextStyle(
+      color: isDark ? Colors.white : Colors.black87,
+      fontWeight: FontWeight.bold,
+    ),
+  ),
+  subtitle: Text(
+    bio,
+    style: TextStyle(
+      color: isDark ? Colors.white60 : Colors.black54,
+    ),
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+  ),
+);
+
+
                           },
                         ),
             ),

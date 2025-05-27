@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:provider/provider.dart';
+import 'package:frkthreads/providers/theme_provider.dart';
 import 'package:frkthreads/services/notification_service.dart';
 
 class UserProfileScreen extends StatefulWidget {
@@ -20,11 +22,11 @@ class UserProfileScreen extends StatefulWidget {
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
   final _currentUid = FirebaseAuth.instance.currentUser?.uid;
-  static const Color _background = Color(0xFF2D3B3A);
-  static const Color _accent = Color(0xFFB88C66);
-  static const Color _card = Color(0xFFEFEFEF);
-  static const Color _textLight = Colors.white;
-  static const Color _textDark = Colors.black87;
+  late Color _background;
+  late Color _accent;
+  late Color _card;
+  late Color _textLight;
+  late Color _textDark;
   int _selectedTab = 0;
 
   late Stream<bool> _isFollowingStream;
@@ -35,6 +37,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   void initState() {
     super.initState();
     _initializeStreams();
+    _initializeColors();
+  }
+
+  void _initializeColors() {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    _updateColors(themeProvider.isDarkMode);
+  }
+
+  void _updateColors(bool isDark) {
+    // Using theme provider's color constants
+    _background = isDark ? const Color(0xFF1A2327) : const Color(0xFFF5F0E5);
+    _accent = isDark ? const Color(0xFF64B5F6) : const Color(0xFFB88C66);
+    _card = isDark ? const Color(0xFF37474F) : Colors.white;
+    _textLight = isDark ? const Color(0xFFF1E9D2) : const Color(0xFF293133);
+    _textDark = isDark ? Colors.black87 : Colors.white;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    _updateColors(themeProvider.isDarkMode);
   }
 
   void _initializeStreams() {
@@ -82,12 +106,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
     }
   }
-
   Widget _buildGlassContainer({
     required Widget child,
     double height = 200,
     double borderRadius = 20,
   }) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final isDark = themeProvider.isDarkMode;
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(
@@ -95,12 +121,19 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Container(
           height: height,
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.1),
+            color: isDark ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.8),
             borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(
-              color: Colors.white.withOpacity(0.2),
+              color: isDark ? Colors.white.withOpacity(0.2) : _accent.withOpacity(0.2),
               width: 1.5,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: isDark ? Colors.black.withOpacity(0.2) : _accent.withOpacity(0.1),
+                blurRadius: 10,
+                spreadRadius: 2,
+              ),
+            ],
           ),
           child: child,
         ),
@@ -412,7 +445,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               ),
             ),
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back, color: _textLight),
+              icon: Icon(Icons.arrow_back, color: _textLight),
               onPressed: () => Navigator.pop(context),
             ),
           ),
@@ -746,10 +779,8 @@ class _PostCardState extends State<PostCard>
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   bool _isHovered = false;
-
-  // Colors
-  static const Color _card = Color(0xFFEFEFEF);
-  static const Color _textDark = Colors.black87;
+  late Color _card;
+  late Color _textColor;
 
   @override
   void initState() {
@@ -759,9 +790,30 @@ class _PostCardState extends State<PostCard>
       vsync: this,
     );
     _scaleAnimation = Tween<double>(
-      begin: 1,
+      begin: 1.0,
       end: 1.05,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+    ));
+    _initializeColors();
+  }
+
+  void _initializeColors() {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    _updateColors(themeProvider.isDarkMode);
+  }
+
+  void _updateColors(bool isDark) {
+    _card = isDark ? const Color(0xFF37474F) : Colors.white;
+    _textColor = isDark ? const Color(0xFFF1E9D2) : const Color(0xFF293133);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    _updateColors(themeProvider.isDarkMode);
   }
 
   @override
@@ -772,101 +824,89 @@ class _PostCardState extends State<PostCard>
 
   @override
   Widget build(BuildContext context) {
-    return FadeInUp(
-      delay: Duration(milliseconds: widget.index * 50),
-      duration: const Duration(milliseconds: 500),
-      child: MouseRegion(
-        onEnter: (_) {
-          setState(() => _isHovered = true);
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() {
+          _isHovered = true;
           _controller.forward();
-        },
-        onExit: (_) {
-          setState(() => _isHovered = false);
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _isHovered = false;
           _controller.reverse();
-        },
-        child: ScaleTransition(
-          scale: _scaleAnimation,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: _card,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color:
-                      _isHovered
-                          ? Colors.black.withOpacity(0.2)
-                          : Colors.black.withOpacity(0.1),
-                  blurRadius: _isHovered ? 15 : 10,
-                  offset: const Offset(0, 4),
+        });
+      },
+      child: ScaleTransition(
+        scale: _scaleAnimation,
+        child: Container(
+          decoration: BoxDecoration(
+            color: _card,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: _isHovered
+                ? [
+                    BoxShadow(
+                      color: _textColor.withOpacity(0.1),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    )
+                  ]
+                : [],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.post['image'] != null && widget.post['image'].isNotEmpty)
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                  child: Image.memory(
+                    base64Decode(widget.post['image']),
+                    fit: BoxFit.cover,
+                    height: 150,
+                    width: double.infinity,
+                  ),
                 ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    // Handle post tap
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.post['content'] ?? '',
-                          style: GoogleFonts.poppins(
-                            color: _textDark,
-                            fontSize: 14,
-                            height: 1.5,
-                          ),
-                          maxLines: 6,
-                          overflow: TextOverflow.ellipsis,
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widget.post['description'] != null)
+                      Text(
+                        widget.post['description'],
+                        style: TextStyle(
+                          color: _textColor,
+                          fontSize: 14,
                         ),
-                        const Spacer(),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              widget.getTimeAgo(widget.timestamp),
-                              style: GoogleFonts.poppins(
-                                color: _textDark.withOpacity(0.6),
-                                fontSize: 10,
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.favorite_border,
-                                  size: 16,
-                                  color: _UserProfileScreenState._textDark
-                                      .withOpacity(0.6),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '0',
-                                  style: GoogleFonts.poppins(
-                                    color: _UserProfileScreenState._textDark
-                                        .withOpacity(0.6),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.access_time, 
+                          size: 14, 
+                          color: _textColor.withOpacity(0.7)
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          widget.getTimeAgo(widget.timestamp),
+                          style: TextStyle(
+                            color: _textColor.withOpacity(0.7),
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),
-                  ),
+                  ],
                 ),
               ),
-            ),
+            ],
           ),
         ),
-      ),
-    );
+      );
   }
 }

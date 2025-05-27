@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:frkthreads/screens/postdetailscreen.dart';
-import 'package:frkthreads/screens/searchscreen.dart';
+import 'package:frkthreads/screens/search_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
@@ -12,12 +12,11 @@ import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:frkthreads/widgets/story_list.dart';
+import 'package:frkthreads/services/notification_service.dart';
 import 'addpostscreen.dart';
 import 'notificationscreen.dart';
 import 'profilescreen.dart';
 import 'signinscreen.dart';
-
-import 'package:firebase_auth/firebase_auth.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -116,11 +115,11 @@ class _HomeScreenState extends State<HomeScreen>
         title: ShaderMask(
           shaderCallback:
               (bounds) => LinearGradient(
-            colors:
-                isDark
-                    ? [Colors.white, Colors.white70]
-                    : [Colors.white, Colors.white.withOpacity(0.8)],
-          ).createShader(bounds),
+                colors:
+                    isDark
+                        ? [Colors.white, Colors.white70]
+                        : [Colors.white, Colors.white.withOpacity(0.8)],
+              ).createShader(bounds),
           child: const Text(
             'FRKTHREADS',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24),
@@ -139,29 +138,44 @@ class _HomeScreenState extends State<HomeScreen>
           // --- Implementasi StreamBuilder untuk CircleAvatar Foto Profil ---
           if (_currentUserUID != null)
             StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(_currentUserUID)
-                  .snapshots(),
+              stream:
+                  FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(_currentUserUID)
+                      .snapshots(),
               builder: (context, AsyncSnapshot<DocumentSnapshot> snapshot) {
                 String? profileImageBase64;
                 String initialLetter = '?'; // Default jika tidak ada nama
 
-                if (snapshot.connectionState == ConnectionState.active) { // Cek jika stream aktif
+                if (snapshot.connectionState == ConnectionState.active) {
+                  // Cek jika stream aktif
                   if (snapshot.hasData && snapshot.data!.exists) {
-                    final userData = snapshot.data!.data() as Map<String, dynamic>?;
+                    final userData =
+                        snapshot.data!.data() as Map<String, dynamic>?;
                     if (userData != null) {
                       profileImageBase64 = userData['profileImage'] as String?;
-                      final fullName = (userData['fullName'] as String?)?.isNotEmpty == true
-                          ? userData['fullName'] as String
-                          : (FirebaseAuth.instance.currentUser?.displayName ?? '');
+                      final fullName =
+                          (userData['fullName'] as String?)?.isNotEmpty == true
+                              ? userData['fullName'] as String
+                              : (FirebaseAuth
+                                      .instance
+                                      .currentUser
+                                      ?.displayName ??
+                                  '');
                       if (fullName.isNotEmpty) {
                         initialLetter = fullName[0].toUpperCase();
                       }
                     }
-                  } else if (FirebaseAuth.instance.currentUser?.displayName?.isNotEmpty == true) {
+                  } else if (FirebaseAuth
+                          .instance
+                          .currentUser
+                          ?.displayName
+                          ?.isNotEmpty ==
+                      true) {
                     // Fallback ke displayName dari Auth jika Firestore doc belum ada atau fullName kosong
-                    initialLetter = FirebaseAuth.instance.currentUser!.displayName![0].toUpperCase();
+                    initialLetter =
+                        FirebaseAuth.instance.currentUser!.displayName![0]
+                            .toUpperCase();
                   }
                 }
                 // Saat loading atau error, bisa tampilkan placeholder sederhana
@@ -171,8 +185,11 @@ class _HomeScreenState extends State<HomeScreen>
                   onTap: () {
                     // Navigasi ke ProfileScreen saat CircleAvatar di-tap
                     // Jika Anda ingin mengganti tab di BottomNavBar ke ProfileScreen (indeks 3):
-                    if (_selectedIndex != 3) { // Cek agar tidak setState jika sudah di tab profil
-                       _onItemTapped(_mapSelectedIndexToNavBarIndex(3)); // map 3 ke nav bar index
+                    if (_selectedIndex != 3) {
+                      // Cek agar tidak setState jika sudah di tab profil
+                      _onItemTapped(
+                        _mapSelectedIndexToNavBarIndex(3),
+                      ); // map 3 ke nav bar index
                     }
                     // Atau jika ingin push halaman ProfileScreen secara independen:
                     // Navigator.push(
@@ -181,36 +198,49 @@ class _HomeScreenState extends State<HomeScreen>
                     // );
                   },
                   child: Padding(
-                    padding: const EdgeInsets.only(right: 12.0, left: 4.0), // Jarak avatar
+                    padding: const EdgeInsets.only(
+                      right: 12.0,
+                      left: 4.0,
+                    ), // Jarak avatar
                     child: CircleAvatar(
                       radius: 18, // Ukuran disesuaikan
-                      backgroundColor: isDark ? Colors.grey[700] : Colors.white.withOpacity(0.7),
-                      child: (profileImageBase64 != null && profileImageBase64.isNotEmpty)
-                          ? ClipOval(
-                              child: Image.memory(
-                                base64Decode(profileImageBase64),
-                                width: 36, // 2x radius
-                                height: 36,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  // Fallback jika error decode gambar
-                                  return Text(
-                                    initialLetter,
-                                    style: TextStyle(
-                                      color: isDark ? Colors.white70 : Colors.black54,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  );
-                                },
+                      backgroundColor:
+                          isDark
+                              ? Colors.grey[700]
+                              : Colors.white.withOpacity(0.7),
+                      child:
+                          (profileImageBase64 != null &&
+                                  profileImageBase64.isNotEmpty)
+                              ? ClipOval(
+                                child: Image.memory(
+                                  base64Decode(profileImageBase64),
+                                  width: 36, // 2x radius
+                                  height: 36,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) {
+                                    // Fallback jika error decode gambar
+                                    return Text(
+                                      initialLetter,
+                                      style: TextStyle(
+                                        color:
+                                            isDark
+                                                ? Colors.white70
+                                                : Colors.black54,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              )
+                              : Text(
+                                // Tampilkan inisial jika tidak ada gambar atau saat loading
+                                initialLetter,
+                                style: TextStyle(
+                                  color:
+                                      isDark ? Colors.white70 : Colors.black54,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            )
-                          : Text( // Tampilkan inisial jika tidak ada gambar atau saat loading
-                              initialLetter,
-                              style: TextStyle(
-                                color: isDark ? Colors.white70 : Colors.black54,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
                     ),
                   ),
                 );
@@ -221,8 +251,13 @@ class _HomeScreenState extends State<HomeScreen>
               padding: const EdgeInsets.only(right: 12.0, left: 4.0),
               child: CircleAvatar(
                 radius: 18,
-                backgroundColor: isDark ? Colors.grey[700] : Colors.white.withOpacity(0.7),
-                child: Icon(Icons.person, size: 20, color: isDark ? Colors.white70 : Colors.black54),
+                backgroundColor:
+                    isDark ? Colors.grey[700] : Colors.white.withOpacity(0.7),
+                child: Icon(
+                  Icons.person,
+                  size: 20,
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
               ),
             ),
           // const SizedBox(width: 10), // Dihapus
@@ -858,7 +893,6 @@ class PostListView extends StatelessWidget {
     if (!doc.exists) return;
 
     final likedBy = List<String>.from(doc.data()?['likedBy'] ?? []);
-
     if (likedBy.contains(uid)) {
       await postRef.update({
         'likes': FieldValue.increment(-1),
@@ -869,6 +903,18 @@ class PostListView extends StatelessWidget {
         'likes': FieldValue.increment(1),
         'likedBy': FieldValue.arrayUnion([uid]),
       });
+
+      // Create notification when someone likes a post
+      final postData = doc.data()!;
+      final postOwnerId = postData['userId'];
+      if (postOwnerId != uid) {
+        await NotificationService.instance.createNotification(
+          type: 'like',
+          toUserId: postOwnerId,
+          postId: postId,
+          description: 'liked your post',
+        );
+      }
     }
   }
 

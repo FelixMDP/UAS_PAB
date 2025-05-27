@@ -230,26 +230,33 @@ class SignUpScreenState extends State<SignUpScreen> {
           .createUserWithEmailAndPassword(email: email, password: password);
 
       // 2. Setelah pengguna berhasil dibuat, update displayName mereka
-      if (userCredential.user != null) { // Pastikan user tidak null
-        await userCredential.user!.updateDisplayName(fullName); // <-- TAMBAHKAN BARIS INI
-        print('Display name updated to: $fullName'); // Opsional: untuk debugging
+      if (userCredential.user != null) {
+        // Pastikan user tidak null
+        await userCredential.user!.updateDisplayName(
+          fullName,
+        ); // <-- TAMBAHKAN BARIS INI
+        print(
+          'Display name updated to: $fullName',
+        ); // Opsional: untuk debugging
       }
 
       // 3. Simpan informasi tambahan pengguna ke Firestore (ini sudah Anda lakukan)
       //    Penting: Pastikan userCredential.user!.uid tersedia
-      if (userCredential.user != null) { // Cek lagi untuk Firestore
-         await FirebaseFirestore.instance
+      if (userCredential.user != null) {
+        // Cek lagi untuk Firestore
+        await FirebaseFirestore.instance
             .collection('users')
             .doc(userCredential.user!.uid)
             .set({
-              'fullName': fullName, // Anda sudah menyimpan ini, bagus!
+              'fullName': fullName,
               'email': email,
               'createdAt': Timestamp.now(),
-              // Anda mungkin juga ingin menyimpan UID di sini jika diperlukan untuk query lain
-              'uid': userCredential.user!.uid, 
+              'uid': userCredential.user!.uid,
+              'followers': [], // Initialize empty followers array
+              'following': [], // Initialize empty following array
+              'bio': '', // Initialize empty bio for edit profile
             });
       }
-
 
       if (!mounted) return;
       // Navigasi ke HomeScreen setelah semua selesai
@@ -263,12 +270,12 @@ class SignUpScreenState extends State<SignUpScreen> {
     } catch (error) {
       _showErrorMessage('An error occurred during sign up: $error');
     } finally {
-      if (mounted) { // Pastikan widget masih mounted sebelum setState
-         setState(() => _isLoading = false);
+      if (mounted) {
+        // Pastikan widget masih mounted sebelum setState
+        setState(() => _isLoading = false);
       }
     }
   }
-
 
   void _showErrorMessage(String message) {
     ScaffoldMessenger.of(

@@ -44,7 +44,11 @@ class DetailScreen extends StatefulWidget {
     required this.category,
     required this.heroTag,
     required this.postId,
+<<<<<<< HEAD
     required this.post,
+=======
+    required DocumentSnapshot<Object?> post,
+>>>>>>> 55e181723e12ebd57ed4017666666bc507c19b2d
   });
 
   @override
@@ -479,6 +483,347 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
+<<<<<<< HEAD
+=======
+  Widget _buildCommentsSheet() {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder:
+          (_, controller) => Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                // Handle bar
+                Container(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // Header with comment count
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      TweenAnimationBuilder<int>(
+                        tween: IntTween(begin: 0, end: commentDetails.length),
+                        duration: const Duration(milliseconds: 500),
+                        builder:
+                            (context, value, child) => Text(
+                              'Comments ($value)',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                      ),
+                      const Spacer(),
+                      if (commentDetails.isNotEmpty)
+                        TextButton.icon(
+                          icon: const Icon(Icons.sort),
+                          label: const Text('Latest'),
+                          onPressed: () {
+                            // Implement sorting if needed
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+                // Comments list
+                Expanded(
+                  child:
+                      commentDetails.isEmpty
+                          ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.chat_bubble_outline,
+                                  size: 64,
+                                  color: Colors.grey[400],
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'No comments yet\nBe the first to comment!',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                          : ListView.builder(
+                            controller: controller,
+                            itemCount: commentDetails.length,
+                            itemBuilder: (context, index) {
+                              final comment = commentDetails[index];
+                              final commentTime = DateTime.parse(
+                                comment['createdAt'],
+                              );
+                              final timeAgo = _formatTimeAgo(commentTime);
+
+                              return Column(
+                                children: [
+                                  ListTile(
+                                    leading: const CircleAvatar(
+                                      backgroundColor: Colors.blue,
+                                      child: Icon(
+                                        Icons.person,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    title: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            comment['userName'] ?? 'Anonymous',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          timeAgo,
+                                          style: TextStyle(
+                                            color: Colors.grey[600],
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    subtitle: Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        comment['text'],
+                                        style: const TextStyle(
+                                          color: Colors.black87,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  if (index < commentDetails.length - 1)
+                                    const Divider(indent: 72),
+                                ],
+                              );
+                            },
+                          ),
+                ),
+                // Comment input
+                Padding(
+                  padding: EdgeInsets.only(
+                    left: 16,
+                    right: 16,
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+                    top: 8,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _commentController,
+                          maxLines: null,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: InputDecoration(
+                            hintText: 'Add a comment...',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: const BorderSide(color: Colors.blue),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            fillColor: Colors.grey[100],
+                            filled: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Material(
+                        color: Colors.blue,
+                        shape: const CircleBorder(),
+                        clipBehavior: Clip.antiAlias,
+                        child: IconButton(
+                          icon:
+                              _isCommenting
+                                  ? const SizedBox(
+                                    width: 24,
+                                    height: 24,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                  : const Icon(Icons.send, color: Colors.white),
+                          onPressed: _isCommenting ? null : _addComment,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Widget _buildLikesSheet() {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.9,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder:
+          (context, controller) => Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  height: 4,
+                  width: 40,
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      TweenAnimationBuilder<int>(
+                        tween: IntTween(begin: 0, end: likes),
+                        duration: const Duration(milliseconds: 500),
+                        builder:
+                            (context, value, child) => Text(
+                              'Likes ($value)',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: StreamBuilder<DocumentSnapshot>(
+                    stream:
+                        FirebaseFirestore.instance
+                            .collection('posts')
+                            .doc(widget.postId)
+                            .snapshots(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final data =
+                          snapshot.data!.data() as Map<String, dynamic>;
+                      final List<String> likedBy = List<String>.from(
+                        data['likedBy'] ?? [],
+                      );
+
+                      if (likedBy.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.favorite_outline,
+                                size: 64,
+                                color: Colors.grey[400],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No likes yet\nBe the first to like!',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return FutureBuilder<List<DocumentSnapshot>>(
+                        future: Future.wait(
+                          likedBy.map(
+                            (uid) =>
+                                FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(uid)
+                                    .get(),
+                          ),
+                        ),
+                        builder: (context, userSnapshots) {
+                          if (!userSnapshots.hasData) {
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          }
+
+                          final users = userSnapshots.data!;
+                          return ListView.builder(
+                            controller: controller,
+                            itemCount: users.length,
+                            itemBuilder: (context, index) {
+                              final userData =
+                                  users[index].data() as Map<String, dynamic>?;
+                              final userName =
+                                  userData?['fullName'] ?? 'Anonymous';
+
+                              return ListTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.blue,
+                                  child: Text(
+                                    userName[0].toUpperCase(),
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                                title: Text(userName),
+                              );
+                            },
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+>>>>>>> 55e181723e12ebd57ed4017666666bc507c19b2d
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -550,6 +895,7 @@ class _DetailScreenState extends State<DetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+<<<<<<< HEAD
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 12,
@@ -567,6 +913,21 @@ class _DetailScreenState extends State<DetailScreen> {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
+=======
+                      AnimatedLikeButton(
+                        isLiked: isLiked,
+                        isLoading: _isLiking,
+                        likes: likes,
+                        onTap: _toggleLike,
+                        showLikesList: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (context) => _buildLikesSheet(),
+                          );
+                        },
+>>>>>>> 55e181723e12ebd57ed4017666666bc507c19b2d
                       ),
                       const SizedBox(height: 12),
                       Text(
@@ -602,6 +963,7 @@ class _DetailScreenState extends State<DetailScreen> {
                           ),
                         ],
                       ),
+                      const SizedBox(width: 16),
                     ],
                   ),
                 ),

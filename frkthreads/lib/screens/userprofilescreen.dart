@@ -1,12 +1,13 @@
+import 'dart:convert';
 import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:provider/provider.dart';
-import 'package:frkthreads/providers/theme_provider.dart';
+import 'package:frkthreads/services/notification_service.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String userId;
@@ -18,32 +19,57 @@ class UserProfileScreen extends StatefulWidget {
 }
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
+  final _currentUid = FirebaseAuth.instance.currentUser?.uid;
+  static const Color _background = Color(0xFF2D3B3A);
+  static const Color _accent = Color(0xFFB88C66);
+  static const Color _card = Color(0xFFEFEFEF);
+  static const Color _textLight = Colors.white;
+  static const Color _textDark = Colors.black87;
   int _selectedTab = 0;
-  
-  late Color _background;
-  late Color _accent;
-  late Color _card;
-  late Color _textLight;
-  late Color _textDark;
-  
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
 
-    // Set colors based on theme
-    _background = isDark ? const Color(0xFF2D3B3A) : const Color(0xFFF1E9D2);
-    _accent = const Color(0xFFB88C66);
-    _card = isDark ? Colors.grey[850]! : const Color(0xFFEFEFEF);
-    _textLight = isDark ? Colors.white : Colors.black87;
-    _textDark = isDark ? Colors.black87 : Colors.white;
+  late Stream<bool> _isFollowingStream;
+  late Stream<int> _followerCountStream;
+  late Stream<int> _followingCountStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeStreams();
+  }
+
+  void _initializeStreams() {
+    if (_currentUid != null) {
+      // Stream to check if current user is following this profile
+      _isFollowingStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(_currentUid)
+          .snapshots()
+          .map((doc) {
+            final following =
+                (doc.data()?['following'] as List?)?.cast<String>() ?? [];
+            return following.contains(widget.userId);
+          });
+
+      // Stream for followers count
+      _followerCountStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .snapshots()
+          .map((doc) => (doc.data()?['followers'] as List?)?.length ?? 0);
+
+      // Stream for following count
+      _followingCountStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .snapshots()
+          .map((doc) => (doc.data()?['following'] as List?)?.length ?? 0);
+    }
   }
 
   String _getTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-   
+
     if (difference.inSeconds < 60) {
       return '${difference.inSeconds} detik yang lalu';
     } else if (difference.inMinutes < 60) {
@@ -83,14 +109,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildStats() {
-    return StreamBuilder<QuerySnapshot>(
+    return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('posts')
           .where('userId', isEqualTo: widget.userId)
-          .snapshots(),
+          .snapshots()
+          .map((snap) => snap.docs.first),
       builder: (context, snapshot) {
-        int postsCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
-
         return FadeInUp(
           delay: const Duration(milliseconds: 300),
           child: Padding(
@@ -100,26 +125,116 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildStatItem(
-                    title: 'Posts',
-                    value: postsCount.toString(),
-                    icon: Icons.post_add,
+                  StreamBuilder<QuerySnapshot>(
+                    stream:
+                        FirebaseFirestore.instance
+                            .collection('posts')
+                            .where('userId', isEqualTo: widget.userId)
+                            .snapshots(),
+                    builder: (context, snapshot) {
+                      int postsCount =
+                          snapshot.hasData ? snapshot.data!.docs.length : 0;
+                      return _buildStatItem(
+                        title: 'Posts',
+                        value: postsCount.toString(),
+                        icon: Icons.post_add,
+                      );
+                    },
                   ),
                   _buildDivider(),
-                  _buildStatItem(
-                    title: 'Followers',
-                    value: '0',
-                    icon: Icons.people,
+                  StreamBuilder<int>(
+                    stream: _followerCountStream,
+                    builder: (context, snapshot) {
+                      return _buildStatItem(
+                        title: 'Followers',
+                        value: '${snapshot.data ?? 0}',
+                        icon: Icons.people,
+                      );
+                    },
                   ),
                   _buildDivider(),
-                  _buildStatItem(
-                    title: 'Following',
-                    value: '0',
-                    icon: Icons.person_add,
+                  StreamBuilder<int>(
+                    stream: _followingCountStream,
+                    builder: (context, snapshot) {
+                      return _buildStatItem(
+                        title: 'Following',
+                        value: '${snapshot.data ?? 0}',
+                        icon: Icons.person_add,
+                      );
+                    },
                   ),
                 ],
               ),
             ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _toggleFollow() async {
+    if (_currentUid == null) return;
+
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(_currentUid);
+    final targetUserRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.userId);
+
+    final userDoc = await userRef.get();
+    final following = List<String>.from(userDoc.data()?['following'] ?? []);
+    final isFollowing = following.contains(widget.userId);
+
+    if (isFollowing) {
+      // Unfollow
+      await userRef.update({
+        'following': FieldValue.arrayRemove([widget.userId]),
+      });
+      await targetUserRef.update({
+        'followers': FieldValue.arrayRemove([_currentUid]),
+      });
+    } else {
+      // Follow
+      await userRef.update({
+        'following': FieldValue.arrayUnion([widget.userId]),
+      });
+      await targetUserRef.update({
+        'followers': FieldValue.arrayUnion([_currentUid]),
+      });
+
+      // Create follow notification
+      await NotificationService.instance.createNotification(
+        type: 'follow',
+        toUserId: widget.userId,
+        postId: '', // Empty postId for follow notifications
+        description: 'started following you',
+      );
+    }
+  }
+
+  Widget _buildFollowButton() {
+    if (_currentUid == widget.userId)
+      return const SizedBox.shrink(); // Don't show button on own profile
+
+    return StreamBuilder<bool>(
+      stream: _isFollowingStream,
+      builder: (context, snapshot) {
+        final isFollowing = snapshot.data ?? false;
+
+        return ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isFollowing ? _accent.withOpacity(0.2) : _accent,
+            foregroundColor: isFollowing ? _accent : _textLight,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          onPressed: _toggleFollow,
+          child: Text(
+            isFollowing ? 'Unfollow' : 'Follow',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
           ),
         );
       },
@@ -140,11 +255,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: _textLight.withOpacity(0.9),
-              size: 22,
-            ),
+            Icon(icon, color: _textLight.withOpacity(0.9), size: 22),
             const SizedBox(height: 6),
             Text(
               value,
@@ -169,11 +280,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildDivider() {
-    return Container(
-      height: 40,
-      width: 1,
-      color: _textLight.withOpacity(0.2),
-    );
+    return Container(height: 40, width: 1, color: _textLight.withOpacity(0.2));
   }
 
   Widget _buildCustomTabBar() {
@@ -207,7 +314,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     required int index,
   }) {
     final isSelected = _selectedTab == index;
-    
+
     return Expanded(
       child: GestureDetector(
         onTap: () {
@@ -268,103 +375,56 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              _buildHeader(),
-              const SizedBox(height: 16),
-              _buildStats(),
-              const SizedBox(height: 16),
-              _buildCustomTabBar(),
-              _buildTabContent(),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-  Widget _buildHeader() {
     return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('users').doc(widget.userId).get(),
+      future:
+          FirebaseFirestore.instance
+              .collection('users')
+              .doc(widget.userId)
+              .get(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return Shimmer.fromColors(
-            baseColor: Colors.grey[300]!,
-            highlightColor: Colors.grey[100]!,
-            child: _buildHeaderSkeleton(),
+          return Scaffold(
+            backgroundColor: _background,
+            body: Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(_accent),
+              ),
+            ),
           );
         }
-        
+
         final userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
         final fullName = userData['fullName'] ?? 'Username';
         final bio = userData['bio'] ?? '';
 
-        return FadeInDown(
-          duration: const Duration(milliseconds: 500),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: _buildGlassContainer(
-              height: 180,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Hero(
-                      tag: 'profile-${widget.userId}',
-                      child: Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: _accent.withOpacity(0.3),
-                              blurRadius: 10,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
-                        child: CircleAvatar(
-                          radius: 40,
-                          backgroundColor: _card,
-                          child: Icon(Icons.person, size: 40, color: _textDark),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            fullName,
-                            style: GoogleFonts.poppins(
-                              color: _textLight,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (bio.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              bio,
-                              style: GoogleFonts.poppins(
-                                color: _textLight.withOpacity(0.8),
-                                fontSize: 14,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+        return Scaffold(
+          backgroundColor: _background,
+          appBar: AppBar(
+            backgroundColor: _background,
+            elevation: 0,
+            title: Text(
+              fullName,
+              style: GoogleFonts.poppins(
+                color: _textLight,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
               ),
+            ),
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: _textLight),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildHeader(userData, fullName, bio),
+                const SizedBox(height: 16),
+                _buildStats(),
+                const SizedBox(height: 16),
+                _buildCustomTabBar(),
+                _buildTabContent(),
+              ],
             ),
           ),
         );
@@ -372,55 +432,128 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  Widget _buildHeaderSkeleton() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      height: 200,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 80,
-                height: 80,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 150,
-                      height: 24,
-                      color: Colors.white,
+  Widget _buildHeader(Map<String, dynamic> data, String fullName, String bio) {
+    return FadeInDown(
+      duration: const Duration(milliseconds: 500),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: _buildGlassContainer(
+          height: 180,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Hero(
+                  tag: 'profile-${widget.userId}',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: _accent.withOpacity(0.3),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: 200,
-                      height: 16,
-                      color: Colors.white,
-                    ),
-                  ],
+                    child:
+                        data['profileImage'] != null
+                            ? ClipOval(
+                              child: Image.memory(
+                                base64Decode(data['profileImage']!),
+                                width: 80,
+                                height: 80,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                            : CircleAvatar(
+                              radius: 40,
+                              backgroundColor: _card,
+                              child: Icon(
+                                Icons.person,
+                                size: 40,
+                                color: _textDark,
+                              ),
+                            ),
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        fullName,
+                        style: GoogleFonts.poppins(
+                          color: _textLight,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (bio.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          bio,
+                          style: GoogleFonts.poppins(
+                            color: _textLight.withOpacity(0.8),
+                            fontSize: 14,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      if (_currentUid != widget.userId)
+                        StreamBuilder<bool>(
+                          stream: _isFollowingStream,
+                          builder: (context, snapshot) {
+                            final isFollowing = snapshot.data ?? false;
+
+                            return ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor:
+                                    isFollowing
+                                        ? _accent.withOpacity(0.2)
+                                        : _accent,
+                                foregroundColor:
+                                    isFollowing ? _accent : _textLight,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                minimumSize: const Size(double.infinity, 36),
+                              ),
+                              onPressed: _toggleFollow,
+                              child: Text(
+                                isFollowing ? 'Unfollow' : 'Follow',
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
+
   Widget _buildPosts() {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('posts')
-          .where('userId', isEqualTo: widget.userId)
-          .orderBy('timestamp', descending: true)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('posts')
+              .where('userId', isEqualTo: widget.userId)
+              .orderBy('timestamp', descending: true)
+              .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return _buildPostsSkeleton();
@@ -488,6 +621,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       ),
     );
   }
+
   Widget _buildPostsSkeleton() {
     return Shimmer.fromColors(
       baseColor: Colors.grey[300]!,
@@ -536,22 +670,15 @@ class PostCard extends StatefulWidget {
   State<PostCard> createState() => _PostCardState();
 }
 
-class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin {
+class _PostCardState extends State<PostCard>
+    with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   bool _isHovered = false;
-  late Color _card;
-  late Color _textDark;
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
-
-    _card = isDark ? Colors.grey[850]! : const Color(0xFFEFEFEF);
-    _textDark = isDark ? Colors.white : Colors.black87;
-  }
+  // Colors
+  static const Color _card = Color(0xFFEFEFEF);
+  static const Color _textDark = Colors.black87;
 
   @override
   void initState() {
@@ -560,9 +687,10 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
       duration: const Duration(milliseconds: 200),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1, end: 1.05).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1,
+      end: 1.05,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -588,14 +716,16 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
         child: ScaleTransition(
           scale: _scaleAnimation,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),            decoration: BoxDecoration(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
               color: _card,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: _isHovered 
-                      ? Colors.black.withOpacity(0.2)
-                      : Colors.black.withOpacity(0.1),
+                  color:
+                      _isHovered
+                          ? Colors.black.withOpacity(0.2)
+                          : Colors.black.withOpacity(0.1),
                   blurRadius: _isHovered ? 15 : 10,
                   offset: const Offset(0, 4),
                 ),
@@ -616,7 +746,8 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.post['content'] ?? '',                          style: GoogleFonts.poppins(
+                          widget.post['content'] ?? '',
+                          style: GoogleFonts.poppins(
                             color: _textDark,
                             fontSize: 14,
                             height: 1.5,
@@ -629,22 +760,26 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(
-                              widget.getTimeAgo(widget.timestamp),                              style: GoogleFonts.poppins(
+                              widget.getTimeAgo(widget.timestamp),
+                              style: GoogleFonts.poppins(
                                 color: _textDark.withOpacity(0.6),
                                 fontSize: 10,
                               ),
                             ),
                             Row(
-                              children: [                              Icon(
+                              children: [
+                                Icon(
                                   Icons.favorite_border,
                                   size: 16,
-                                  color: _textDark.withOpacity(0.6),
+                                  color: _UserProfileScreenState._textDark
+                                      .withOpacity(0.6),
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
                                   '0',
                                   style: GoogleFonts.poppins(
-                                    color: _textDark.withOpacity(0.6),
+                                    color: _UserProfileScreenState._textDark
+                                        .withOpacity(0.6),
                                     fontSize: 12,
                                   ),
                                 ),

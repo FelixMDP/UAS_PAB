@@ -80,7 +80,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: _buildGlassContainer(
-              height: 100,
+              height: 110,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -117,11 +117,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }) {
     return InkWell(
       onTap: () {
-        // Add haptic feedback
         HapticFeedback.lightImpact();
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -129,15 +127,15 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             Icon(
               icon,
               color: _textLight.withOpacity(0.9),
-              size: 24,
+              size: 22,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             Text(
               value,
               style: GoogleFonts.poppins(
                 color: _textLight,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
               ),
             ),
             Text(
@@ -145,6 +143,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
               style: GoogleFonts.poppins(
                 color: _textLight.withOpacity(0.8),
                 fontSize: 12,
+                letterSpacing: 0.5,
               ),
             ),
           ],

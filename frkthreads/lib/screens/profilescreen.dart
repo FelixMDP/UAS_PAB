@@ -1,11 +1,15 @@
-import 'dart:convert'; // Diperlukan untuk base64Decode
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:frkthreads/screens/editprofilescreen.dart';
-import 'package:frkthreads/screens/settingscreen.dart';
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:animate_do/animate_do.dart';
+import 'package:shimmer/shimmer.dart';
+import 'dart:ui';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -14,8 +18,198 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
+// Color constants
+const Color _background = Color(0xFF2D3B3A);
+const Color _accent = Color(0xFFB88C66);
+const Color _card = Color(0xFFEFEFEF);
+const Color _textLight = Colors.white;
+const Color _textDark = Colors.black87;
+
 class _ProfileScreenState extends State<ProfileScreen> {
   final _uid = FirebaseAuth.instance.currentUser?.uid;
+
+  int _selectedTab = 0;
+
+  String _getTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+   
+    if (difference.inSeconds < 60) {
+      return '${difference.inSeconds} detik yang lalu';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes} menit yang lalu';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours} jam yang lalu';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays} hari yang lalu';
+    } else {
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+    }
+  }
+
+  Widget _buildGlassContainer({
+    required Widget child,
+    double height = 200,
+    double borderRadius = 20,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          height: height,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.2),
+              width: 1.5,
+            ),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderSkeleton() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      height: 200,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 150,
+                      height: 24,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: 200,
+                      height: 16,
+                      color: Colors.white,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabButtons() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      height: 60,
+      child: _buildGlassContainer(
+        height: 60,
+        borderRadius: 30,
+        child: Row(
+          children: [
+            _buildTabButton(
+              title: 'Posts',
+              icon: Icons.grid_on_rounded,
+              index: 0,
+            ),
+            _buildTabButton(
+              title: 'Liked',
+              icon: Icons.favorite_rounded,
+              index: 1,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabButton({
+    required String title,
+    required IconData icon,
+    required int index,
+  }) {
+    final isSelected = _selectedTab == index;
+    
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedTab = index;
+          });
+          HapticFeedback.lightImpact();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          decoration: BoxDecoration(
+            color: isSelected ? _accent.withOpacity(0.2) : Colors.transparent,
+            borderRadius: BorderRadius.circular(30),
+          ),
+          margin: const EdgeInsets.all(5),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? _accent : _textLight.withOpacity(0.7),
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  color: isSelected ? _accent : _textLight.withOpacity(0.7),
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPostsSkeleton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 16,
+          childAspectRatio: 0.75,
+        ),
+        itemCount: 6,
+        itemBuilder: (context, index) {
+          return Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,8 +227,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2),
+      backgroundColor: _background,
       body: SafeArea(
         child: StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance
@@ -43,19 +236,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation(
-                    isDark ? Colors.white : Colors.black87,
-                  ),
+              return SingleChildScrollView(
+                child: Column(
+                  children: [
+                    Shimmer.fromColors(
+                      baseColor: Colors.grey[300]!,
+                      highlightColor: Colors.grey[100]!,
+                      child: _buildHeaderSkeleton(),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTabButtons(),
+                    _buildPostsSkeleton(),
+                  ],
                 ),
               );
             }
             if (!snapshot.hasData || snapshot.data?.data() == null) {
               return Center(
                 child: Text(
-                  'User data not found. Try editing your profile.', // Pesan lebih informatif
-                  style: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+                  'User data not found. Try editing your profile.',
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : Colors.black54
+                  ),
                   textAlign: TextAlign.center,
                 )
               );
@@ -67,156 +269,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 : (FirebaseAuth.instance.currentUser?.displayName ?? 'Anonymous');
             final bio = data['bio'] as String? ?? 'No bio yet';
 
-            return CustomScrollView(
-              slivers: [
-                SliverAppBar(
-                  backgroundColor:
-                      isDark ? Colors.grey[900] : const Color(0xFFB88C66),
-                  expandedHeight: 120,
-                  toolbarHeight: 80,
-                  pinned: true,
-                  flexibleSpace: FlexibleSpaceBar(
-                    titlePadding: const EdgeInsetsDirectional.only(start: 0, bottom: 16, end: 0),
-                    centerTitle: true,
-                    title: Row(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        const SizedBox(width: 16),
-                        Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.rectangle,
-                            borderRadius: BorderRadius.circular(8),
-                            color: isDark ? Colors.grey[800] : Colors.white,
-                          ),
-                          child: data['profileImage'] != null && (data['profileImage'] as String).isNotEmpty
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.memory(
-                                    base64Decode(data['profileImage']!),
-                                    width: 50,
-                                    height: 50,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => 
-                                      Icon(Icons.person, size: 30, color: isDark ? Colors.white70: Colors.grey[600]),
-                                  ),
-                                )
-                              : Center(
-                                  child: Text(
-                                    fullName.isNotEmpty ? fullName[0].toUpperCase() : 'A',
-                                    style: TextStyle(
-                                      fontSize: 20,
-                                      color: isDark
-                                          ? Colors.white
-                                          : const Color(0xFFB88C66),
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                fullName,
-                                style: TextStyle(
-                                  color: isDark ? Colors.white : Colors.black,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                  shadows: const [Shadow(blurRadius: 1.0, color: Colors.black26)]
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                bio,
-                                style: TextStyle(
-                                  color: isDark ? Colors.white.withOpacity(0.7) : Colors.black.withOpacity(0.6),
-                                  fontSize: 12,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
-                        ),
-                         const SizedBox(width: 16),
-                      ],
-                    ),
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor:
-                                      isDark ? Colors.grey[800] : Colors.white,
-                                  foregroundColor: isDark
-                                      ? Colors.white
-                                      : const Color(0xFFB88C66),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                ),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const EditProfileScreen(),
-                                    ),
-                                  );
-                                },
-                                child: const Text('Edit Profile'),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: isDark
-                                      ? Colors.blue[700]
-                                      : const Color(0xFF2D3B3A),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 12,
-                                  ),
-                                ),
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const SettingsScreen(),
-                                    ),
-                                  );
-                                },
-                                child: const Text('Settings'),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        _buildTabSection(),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+            return SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildHeader(data, fullName, bio),
+                  const SizedBox(height: 16),
+                  _buildStats(),
+                  const SizedBox(height: 16),
+                  _buildTabButtons(),
+                  _buildTabContent(),
+                ],
+              ),
             );
           },
         ),
@@ -224,71 +287,337 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildTabSection() {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        children: [
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 0), // Dihilangkan margin horizontal agar full width
-            decoration: BoxDecoration(
-              color: isDark ? Colors.grey[850] : Colors.white,
-              borderRadius: BorderRadius.circular(12), // Disesuaikan dengan style
-              boxShadow: [
-                BoxShadow(
-                  color: isDark ? Colors.black26 : Colors.black12,
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
+  Widget _buildHeader(Map<String, dynamic> data, String fullName, String bio) {
+    return FadeInDown(
+      duration: const Duration(milliseconds: 500),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: _buildGlassContainer(
+          height: 180,
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Hero(
+                  tag: 'profile-${_uid}',
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: _accent.withOpacity(0.3),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: data['profileImage'] != null && 
+                          (data['profileImage'] as String).isNotEmpty
+                        ? ClipOval(
+                            child: Image.memory(
+                              base64Decode(data['profileImage']!),
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : CircleAvatar(
+                            radius: 40,
+                            backgroundColor: _card,
+                            child: Icon(Icons.person, size: 40, color: _textDark),
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        fullName,
+                        style: GoogleFonts.poppins(
+                          color: _textLight,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (bio.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          bio,
+                          style: GoogleFonts.poppins(
+                            color: _textLight.withOpacity(0.8),
+                            fontSize: 14,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _accent.withOpacity(0.2),
+                                foregroundColor: _accent,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const EditProfileScreen(),
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                'Edit Profile',
+                                style: GoogleFonts.poppins(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            child: TabBar(
-              indicator: BoxDecoration(
-                borderRadius: BorderRadius.circular(12), // Disesuaikan
-                color: isDark ? Colors.blue[700] : const Color(0xFFB88C66),
-              ),
-              labelColor: Colors.white,
-              unselectedLabelColor: isDark ? Colors.white60 : Colors.grey[600],
-              tabs: const [Tab(text: 'Posts'), Tab(text: 'Liked')],
-            ),
           ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: MediaQuery.of(context).size.height * 0.5,
-            child: TabBarView(
-              children: [_buildPostsGrid(), _buildLikedPostsGrid()],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildPostsGrid() {
-    if (_uid == null) return _buildEmptyState("User not identified.");
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('posts')
-          .where('userId', isEqualTo: _uid)
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-           return _buildEmptyState("No posts yet");
-        }
+  Widget _buildStats() {
+    return FadeInUp(
+      delay: const Duration(milliseconds: 300),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: _buildGlassContainer(
+          height: 110,
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('posts')
+                .where('userId', isEqualTo: _uid)
+                .snapshots(),
+            builder: (context, snapshot) {
+              int postsCount = snapshot.hasData ? snapshot.data!.docs.length : 0;
+              
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildStatItem(
+                    title: 'Posts',
+                    value: postsCount.toString(),
+                    icon: Icons.post_add,
+                  ),
+                  _buildDivider(),
+                  _buildStatItem(
+                    title: 'Followers',
+                    value: '0',
+                    icon: Icons.people,
+                  ),
+                  _buildDivider(),
+                  _buildStatItem(
+                    title: 'Following',
+                    value: '0',
+                    icon: Icons.person_add,
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
 
-        final posts = snapshot.data!.docs;
-        return _buildGrid(posts);
+  Widget _buildDivider() {
+    return Container(
+      height: 40,
+      width: 1,
+      color: _textLight.withOpacity(0.2),
+    );
+  }
+
+  Widget _buildTabContent() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 300),
+      child: _selectedTab == 0 ? _buildPosts() : _buildLikedPosts(),
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0.1, 0),
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          ),
+        );
       },
     );
   }
 
-  Widget _buildLikedPostsGrid() {
+  Widget _buildPosts() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('posts')
+          .where('userId', isEqualTo: _uid)
+          .orderBy('timestamp', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return _buildPostsSkeleton();
+        }
+
+        final posts = snapshot.data!.docs;
+        if (posts.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.post_add_rounded,
+                  size: 64,
+                  color: _textLight.withOpacity(0.3),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'No posts yet',
+                  style: GoogleFonts.poppins(
+                    color: _textLight.withOpacity(0.7),
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: GridView.builder(
+            padding: const EdgeInsets.only(top: 16),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.75,
+            ),
+            itemCount: posts.length,
+            itemBuilder: (context, index) {
+              final post = posts[index].data() as Map<String, dynamic>;
+              final timestamp = (post['timestamp'] as Timestamp).toDate();
+              
+              return FadeInUp(
+                delay: Duration(milliseconds: index * 50),
+                duration: const Duration(milliseconds: 500),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _card,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          // Handle post tap
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (post['image'] != null) ...[
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Image.memory(
+                                    base64Decode(post['image']!),
+                                    height: 120,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                              ],
+                              Text(
+                                post['description'] ?? '',
+                                style: GoogleFonts.poppins(
+                                  color: _textDark,
+                                  fontSize: 14,
+                                  height: 1.5,
+                                ),
+                                maxLines: 3,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const Spacer(),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _getTimeAgo(timestamp),
+                                    style: GoogleFonts.poppins(
+                                      color: _textDark.withOpacity(0.6),
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.favorite_border,
+                                        size: 16,
+                                        color: _textDark.withOpacity(0.6),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        (post['likes'] ?? 0).toString(),
+                                        style: GoogleFonts.poppins(
+                                          color: _textDark.withOpacity(0.6),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLikedPosts() {
     if (_uid == null) return _buildEmptyState("User not identified.");
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -302,30 +631,96 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
            return _buildEmptyState("No liked posts yet");
         }
+
         final posts = snapshot.data!.docs;
-        return _buildGrid(posts);
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: GridView.builder(
+            padding: const EdgeInsets.only(top: 16),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.75,
+            ),
+            itemCount: posts.length,
+            itemBuilder: (context, index) {
+              final post = posts[index].data() as Map<String, dynamic>;
+              final imageBase64 = post['image'] as String?;
+
+              return FadeInUp(
+                delay: Duration(milliseconds: index * 50),
+                duration: const Duration(milliseconds: 500),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _card,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          // Handle post tap
+                        },
+                        child: imageBase64 != null && imageBase64.isNotEmpty
+                          ? Image.memory(
+                              base64Decode(imageBase64),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Container(
+                                color: _card,
+                                child: Icon(
+                                  Icons.image_not_supported,
+                                  color: _textDark.withOpacity(0.3),
+                                ),
+                              ),
+                            )
+                          : Container(
+                              color: _card,
+                              child: Icon(
+                                Icons.image_not_supported,
+                                color: _textDark.withOpacity(0.3),
+                              ),
+                            ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
       },
     );
   }
 
   Widget _buildEmptyState(String message) {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    final isDark = themeProvider.isDarkMode;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.photo_library_outlined,
-            size: 50, // Ukuran disesuaikan
-            color: isDark ? Colors.white38 : Colors.grey,
+            size: 64,
+            color: _textLight.withOpacity(0.3),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
             message,
-            style: TextStyle(
-              color: isDark ? Colors.white54 : Colors.grey[600], // Warna disesuaikan
-              fontSize: 14, // Ukuran disesuaikan
+            style: GoogleFonts.poppins(
+              color: _textLight.withOpacity(0.7),
+              fontSize: 16,
             ),
           ),
         ],
@@ -375,6 +770,186 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
         );
       },
+    );
+  }
+
+  Widget _buildStatItem({
+    required String title,
+    required String value,
+    required IconData icon,
+  }) {
+    return InkWell(
+      onTap: () {
+        HapticFeedback.lightImpact();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: _textLight.withOpacity(0.9),
+              size: 22,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: GoogleFonts.poppins(
+                color: _textLight,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                color: _textLight.withOpacity(0.8),
+                fontSize: 12,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class PostCard extends StatefulWidget {
+  final Map<String, dynamic> post;
+  final DateTime timestamp;
+  final int index;
+  final Function(DateTime) getTimeAgo;
+
+  const PostCard({
+    Key? key,
+    required this.post,
+    required this.timestamp,
+    required this.index,
+    required this.getTimeAgo,
+  }) : super(key: key);
+
+  @override
+  State<PostCard> createState() => _PostCardState();
+}
+
+class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  bool _isHovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _scaleAnimation = Tween<double>(begin: 1, end: 1.05).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeInUp(
+      delay: Duration(milliseconds: widget.index * 50),
+      duration: const Duration(milliseconds: 500),
+      child: MouseRegion(
+        onEnter: (_) {
+          setState(() => _isHovered = true);
+          _controller.forward();
+        },
+        onExit: (_) {
+          setState(() => _isHovered = false);
+          _controller.reverse();
+        },
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: _card,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: _isHovered 
+                      ? Colors.black.withOpacity(0.2)
+                      : Colors.black.withOpacity(0.1),
+                  blurRadius: _isHovered ? 15 : 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.post['content'] ?? '',
+                          style: GoogleFonts.poppins(
+                            color: _textDark,
+                            fontSize: 14,
+                            height: 1.5,
+                          ),
+                          maxLines: 6,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const Spacer(),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              widget.getTimeAgo(widget.timestamp),
+                              style: GoogleFonts.poppins(
+                                color: _textDark.withOpacity(0.6),
+                                fontSize: 10,
+                              ),
+                            ),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.favorite_border,
+                                  size: 16,
+                                  color: _textDark.withOpacity(0.6),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '0',
+                                  style: GoogleFonts.poppins(
+                                    color: _textDark.withOpacity(0.6),
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

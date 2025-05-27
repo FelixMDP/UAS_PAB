@@ -506,7 +506,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildPosts() {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder<QuerySnapshot>(
       stream:
           FirebaseFirestore.instance
               .collection('posts')
@@ -576,7 +576,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 imageBase64: imageBase64 ?? '',
                                 description: post['description'] ?? '',
                                 createdAt: timestamp,
-                                initialCreatedAt: timestamp,
                                 fullName: post['fullName'] ?? 'Anonymous',
                                 latitude: post['latitude'] ?? 0.0,
                                 longitude: post['longitude'] ?? 0.0,

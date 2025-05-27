@@ -188,7 +188,8 @@ class NotificationScreen extends StatelessWidget {
                                           ?.toDouble() ??
                                       0.0,
                                   category: postData['category'] ?? 'General',
-                                  heroTag: 'notification_${data['postId']}', post: postDoc, initialCreatedAt: (postData['createdAt'] as Timestamp).toDate(),
+                                  heroTag: 'notification_${data['postId']}',
+                                  post: postDoc,
                                 ),
                           ),
                         );

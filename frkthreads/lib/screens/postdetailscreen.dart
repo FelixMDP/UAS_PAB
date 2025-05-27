@@ -1,7 +1,6 @@
 // detailscreen.dart
 
 import 'dart:convert';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -12,34 +11,30 @@ import 'dart:async';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:frkthreads/widgets/post_ui_components.dart';
 import 'package:frkthreads/services/notification_service.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart';
-import 'package:frkthreads/providers/theme_provider.dart';
 
 class DetailScreen extends StatefulWidget {
   final String imageBase64;
   final String description;
-  final DateTime initialCreatedAt; // Renamed to indicate it's the initial value
+  final DateTime createdAt;
   final String fullName;
   final double latitude;
   final double longitude;
   final String category;
   final String heroTag;
   final String postId;
-  final DocumentSnapshot post;
 
   const DetailScreen({
     super.key,
     required this.imageBase64,
     required this.description,
-    required this.initialCreatedAt,
+    required this.createdAt,
     required this.fullName,
     required this.latitude,
     required this.longitude,
     required this.category,
     required this.heroTag,
     required this.postId,
-    required this.post, required DateTime createdAt,
+    required DocumentSnapshot<Object?> post,
   });
 
   @override
@@ -47,25 +42,7 @@ class DetailScreen extends StatefulWidget {
 }
 
 class _DetailScreenState extends State<DetailScreen> {
-  late Color _background;
-  late Color _accent;
-  late Color _textLight;
-  late Color _textDark;
-  late DateTime createdAt;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
-
-    // Update colors based on theme
-    _background = isDark ? const Color(0xFF2D3B3A) : const Color(0xFFF1E9D2);
-    _accent = const Color(0xFFB88C66);
-    _textLight = isDark ? Colors.white : const Color(0xFF293133);
-    _textDark = isDark ? const Color(0xFF293133) : Colors.white;
-  }
-
+  // Add state variables at the top
   final TextEditingController _commentController = TextEditingController();
   late final StreamSubscription<DocumentSnapshot> _postSubscription;
   List<String> comments = [];
@@ -77,48 +54,16 @@ class _DetailScreenState extends State<DetailScreen> {
   bool isPostOwner = false;
   bool _isLiking = false;
   bool _isCommenting = false;
+
   @override
   void initState() {
     super.initState();
-    createdAt = widget.initialCreatedAt;
-    _fetchPostDetails();
-    _updateTimeAgo();
-    _checkPostOwnership();
-    _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
-      _updateTimeAgo();
-    });
-  }
-
-  @override
-  void dispose() {
-    _commentController.dispose();
-    _timer?.cancel();
-    _postSubscription.cancel();
-    super.dispose();
-  }
-
-  void _updateTimeAgo() {
-    setState(() {
-      _timeAgo = _formatTimeAgo(createdAt);
-    });
-  }
-
-  void _checkPostOwnership() {
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
-    if (currentUserId != null) {
-      setState(() {
-        isPostOwner = widget.post.get('userId') == currentUserId;
-      });
-    }
-  }
-
-  Future<void> _fetchPostDetails() async {
     _postSubscription = FirebaseFirestore.instance
         .collection('posts')
         .doc(widget.postId)
         .snapshots()
         .listen((doc) {
-          if (doc.exists && mounted) {
+          if (doc.exists) {
             final data = doc.data()!;
             setState(() {
               comments = List<String>.from(data['comments'] ?? []);
@@ -129,21 +74,61 @@ class _DetailScreenState extends State<DetailScreen> {
               isLiked = (data['likedBy'] ?? []).contains(
                 FirebaseAuth.instance.currentUser?.uid,
               );
-
-              // Handle createdAt field
-              final createdAtRaw = data['createdAt'];
-              if (createdAtRaw is Timestamp) {
-                updateCreatedAt(createdAtRaw.toDate());
-              } else if (createdAtRaw is String) {
-                updateCreatedAt(
-                  DateTime.tryParse(createdAtRaw) ?? DateTime.now(),
-                );
-              } else {
-                updateCreatedAt(DateTime.now());
-              }
             });
           }
         });
+
+    _updateTimeAgo();
+    _checkPostOwnership();
+    _timer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      _updateTimeAgo();
+    });
+  }
+
+  void _updateTimeAgo() {
+    setState(() {
+      _timeAgo = _formatTimeAgo(widget.createdAt);
+    });
+  }
+
+  String _formatTimeAgo(DateTime dateTime) {
+    final now = DateTime.now();
+    final difference = now.difference(dateTime);
+
+    if (difference.inMinutes < 1) {
+      return 'Just now';
+    } else if (difference.inHours < 1) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inDays < 1) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return DateFormat('dd MMM yyyy, HH:mm').format(dateTime);
+    }
+  }
+
+  Future<void> _fetchPostDetails() async {
+    try {
+      final doc =
+          await FirebaseFirestore.instance
+              .collection('posts')
+              .doc(widget.postId)
+              .get();
+
+      if (doc.exists) {
+        final data = doc.data()!;
+        setState(() {
+          comments = List<String>.from(data['comments'] ?? []);
+          likes = data['likes'] ?? 0;
+          isLiked = (data['likedBy'] ?? []).contains(
+            FirebaseAuth.instance.currentUser?.uid,
+          );
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching post details: $e');
+    }
   }
 
   Future<void> _toggleLike() async {
@@ -157,82 +142,232 @@ class _DetailScreenState extends State<DetailScreen> {
       final postRef = FirebaseFirestore.instance
           .collection('posts')
           .doc(widget.postId);
+      final doc = await postRef.get();
 
-      if (isLiked) {
+      if (!doc.exists) return;
+
+      final data = doc.data()!;
+      final likedBy = List<String>.from(data['likedBy'] ?? []);
+
+      if (likedBy.contains(uid)) {
         await postRef.update({
           'likes': FieldValue.increment(-1),
           'likedBy': FieldValue.arrayRemove([uid]),
+        });
+        setState(() {
+          isLiked = false;
+          likes--;
         });
       } else {
         await postRef.update({
           'likes': FieldValue.increment(1),
           'likedBy': FieldValue.arrayUnion([uid]),
         });
+        setState(() {
+          isLiked = true;
+          likes++;
+        }); // Add notification
+        final postOwnerId = data['userId'];
+        if (postOwnerId != uid) {
+          await NotificationService.instance.createNotification(
+            type: 'like',
+            toUserId: postOwnerId,
+            postId: widget.postId,
+            description: 'liked your post',
+          );
+        }
       }
     } catch (e) {
-      _showErrorSnackBar('Could not update like status');
+      debugPrint('Error toggling like: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating like: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isLiking = false);
     }
   }
 
   Future<void> _addComment() async {
-    if (_isCommenting) return;
-
-    final comment = _commentController.text.trim();
-    if (comment.isEmpty) return;
+    final commentText = _commentController.text.trim();
+    if (_isCommenting || commentText.isEmpty) return;
 
     try {
       setState(() => _isCommenting = true);
-
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        _showErrorSnackBar('Please sign in to comment');
-        return;
-      }
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
 
       final userDoc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
+          await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      final userName = userDoc.data()?['fullName'] ?? 'Anonymous';
 
-      final userName =
-          userDoc.data()?['fullName'] ?? user.displayName ?? 'Anonymous';
+      final commentData = {
+        'text': commentText,
+        'userId': uid,
+        'userName': userName,
+        'createdAt': DateTime.now().toIso8601String(),
+      };
 
       await FirebaseFirestore.instance
           .collection('posts')
           .doc(widget.postId)
           .update({
-            'comments': FieldValue.arrayUnion([comment]),
-            'commentDetails': FieldValue.arrayUnion([
-              {
-                'userId': user.uid,
-                'userName': userName,
-                'text': comment,
-                'timestamp': Timestamp.now(),
-              },
-            ]),
-          });
-
-      _commentController.clear();
-
-      // Send notification to post owner if they're not the commenter
-      if (user.uid != widget.post.get('userId')) {
-        NotificationService.instance.createNotification(
+            'comments': FieldValue.arrayUnion([commentText]),
+            'commentDetails': FieldValue.arrayUnion([commentData]),
+          }); // Add notification
+      final postRef = FirebaseFirestore.instance
+          .collection('posts')
+          .doc(widget.postId);
+      final doc = await postRef.get();
+      final postData = doc.data() as Map<String, dynamic>;
+      final postOwnerId = postData['userId'];
+      if (postOwnerId != uid) {
+        await NotificationService.instance.createNotification(
           type: 'comment',
-          toUserId: widget.post.get('userId'),
+          toUserId: postOwnerId,
           postId: widget.postId,
-          description: '$userName commented on your post',
+          description: 'commented on your post: $commentText',
         );
       }
+
+      _commentController.clear();
+      _fetchPostDetails();
     } catch (e) {
-      _showErrorSnackBar('Could not add comment');
-    } finally {
+      debugPrint('Error adding comment: $e');
       if (mounted) {
-        setState(() => _isCommenting = false);
-        _showMessage('Comment added successfully');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error adding comment: $e')));
       }
+    } finally {
+      if (mounted) setState(() => _isCommenting = false);
+    }
+  }
+
+  Future<void> openMap(BuildContext context) async {
+    final uri = Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${widget.latitude},${widget.longitude}',
+    );
+    final success = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!success && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tidak bisa membuka Google Maps')),
+      );
+    }
+  }
+
+  void _showMapBottomSheet() {
+    if (widget.latitude == 0.0 || widget.longitude == 0.0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Location not available for this post')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder:
+          (context) => Container(
+            height: MediaQuery.of(context).size.height * 0.7,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Post Location',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: GoogleMap(
+                      initialCameraPosition: CameraPosition(
+                        target: LatLng(widget.latitude, widget.longitude),
+                        zoom: 15,
+                      ),
+                      markers: {
+                        Marker(
+                          markerId: const MarkerId('postLocation'),
+                          position: LatLng(widget.latitude, widget.longitude),
+                          infoWindow: InfoWindow(title: widget.fullName),
+                        ),
+                      },
+                      mapType: MapType.normal,
+                      zoomControlsEnabled: true,
+                      myLocationEnabled: true,
+                      myLocationButtonEnabled: true,
+                      compassEnabled: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on, color: Colors.red),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Posted by ${widget.fullName}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            DateFormat(
+                              'dd MMMM yyyy, HH:mm',
+                            ).format(widget.createdAt),
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.directions),
+                      label: const Text('Directions'),
+                      onPressed: () => _openInGoogleMaps(),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+    );
+  }
+
+  Future<void> _openInGoogleMaps() async {
+    final url = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=${widget.latitude},${widget.longitude}',
+    );
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open Google Maps')),
+        );
+      }
+    }
+  }
+
+  Future<void> _checkPostOwnership() async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final doc =
+        await FirebaseFirestore.instance
+            .collection('posts')
+            .doc(widget.postId)
+            .get();
+
+    if (doc.exists && mounted) {
+      setState(() {
+        isPostOwner = doc.data()?['userId'] == currentUserId;
+      });
     }
   }
 
@@ -243,257 +378,47 @@ class _DetailScreenState extends State<DetailScreen> {
           .doc(widget.postId)
           .delete();
 
-      Navigator.pop(context);
-      _showMessage('Post deleted successfully');
+      if (mounted) {
+        Navigator.pop(context); // Return to previous screen
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Post deleted successfully')),
+        );
+      }
     } catch (e) {
-      _showErrorSnackBar('Could not delete post');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error deleting post: $e')));
+      }
     }
   }
 
-  String _formatTimeAgo(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
-
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inHours < 1) {
-      final minutes = difference.inMinutes;
-      return '$minutes ${minutes == 1 ? 'minute' : 'minutes'} ago';
-    } else if (difference.inDays < 1) {
-      final hours = difference.inHours;
-      return '$hours ${hours == 1 ? 'hour' : 'hours'} ago';
-    } else if (difference.inDays < 7) {
-      final days = difference.inDays;
-      return '$days ${days == 1 ? 'day' : 'days'} ago';
-    } else {
-      return DateFormat('MMM d, y').format(dateTime);
-    }
-  }
-
-  void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: GoogleFonts.poppins(color: Colors.white)),
-        backgroundColor: Colors.red[400],
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.poppins(
-            color: Colors.white,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        backgroundColor: _accent,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-        animation: CurvedAnimation(
-          parent: const AlwaysStoppedAnimation(1),
-          curve: Curves.easeOut,
-        ),
-      ),
-    );
-  }
-
-  // Helper method to build glass container effect
-  Widget _buildGlassContainer({
-    required Widget child,
-    required double height,
-    double borderRadius = 16,
-  }) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
-
-    return Container(
-      height: height,
-      decoration: BoxDecoration(
-        color:
-            isDark
-                ? Colors.white.withOpacity(0.1)
-                : Colors.white.withOpacity(0.8),
-        borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: [
-          BoxShadow(
-            color:
-                isDark
-                    ? Colors.black.withOpacity(0.2)
-                    : _accent.withOpacity(0.1),
-            blurRadius: 10,
-            spreadRadius: 2,
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(borderRadius),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(borderRadius),
-              border: Border.all(
-                color:
-                    isDark
-                        ? Colors.white.withOpacity(0.15)
-                        : _accent.withOpacity(0.2),
-                width: 1.5,
-              ),
-            ),
-            child: child,
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showMapBottomSheet() {
-    showModalBottomSheet(
+  void _showDeleteConfirmation() {
+    showDialog(
       context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        final themeProvider = Provider.of<ThemeProvider>(context);
-        final isDark = themeProvider.isDarkMode;
-
-        return Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          height: MediaQuery.of(context).size.height * 0.7,
-          decoration: BoxDecoration(
-            color: isDark ? _background : Colors.white,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(20),
-              bottom: Radius.circular(20),
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Post'),
+          content: const Text('Are you sure you want to delete this post?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.1),
-                blurRadius: 10,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: (isDark ? Colors.white : Colors.black).withOpacity(
-                      0.2,
-                    ),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Icon(Icons.location_on, color: _accent, size: 24),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Post Location',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? _textLight : _textDark,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: GoogleMap(
-                    initialCameraPosition: CameraPosition(
-                      target: LatLng(widget.latitude, widget.longitude),
-                      zoom: 15,
-                    ),
-                    markers: {
-                      Marker(
-                        markerId: const MarkerId('postLocation'),
-                        position: LatLng(widget.latitude, widget.longitude),
-                        infoWindow: InfoWindow(title: widget.fullName),
-                      ),
-                    },
-                    mapType: MapType.normal,
-                    zoomControlsEnabled: true,
-                    myLocationEnabled: true,
-                    myLocationButtonEnabled: true,
-                    compassEnabled: true,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildGlassContainer(
-                  height: 60,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () async {
-                        final url =
-                            'https://www.google.com/maps/search/?api=1&query=${widget.latitude},${widget.longitude}';
-                        if (await canLaunch(url)) {
-                          await launch(url);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.map,
-                              color:
-                                  isDark ? _accent : _accent.withOpacity(0.8),
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Open in Google Maps',
-                              style: GoogleFonts.poppins(
-                                fontSize: 16,
-                                color: isDark ? _textLight : _textDark,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const Spacer(),
-                            Icon(
-                              Icons.open_in_new,
-                              color: (isDark ? _textLight : _textDark)
-                                  .withOpacity(0.5),
-                              size: 20,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _deletePost();
+              },
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
         );
       },
     );
   }
 
-  Widget _buildDraggableCommentsSheet() {
+  Widget _buildCommentsSheet() {
     return DraggableScrollableSheet(
       initialChildSize: 0.9,
       minChildSize: 0.5,
@@ -831,28 +756,17 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-  void updateCreatedAt(DateTime newCreatedAt) {
-    setState(() {
-      createdAt = newCreatedAt;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        systemOverlayStyle:
-            isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        systemOverlayStyle: SystemUiOverlayStyle.dark,
         elevation: 0,
-        backgroundColor: isDark ? _background : _accent,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
         leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back,
-            color: isDark ? _textLight : Colors.white,
-          ),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
         title: Column(
@@ -860,25 +774,22 @@ class _DetailScreenState extends State<DetailScreen> {
           children: [
             Text(
               widget.fullName,
-              style: GoogleFonts.poppins(
-                color: isDark ? _textLight : Colors.white,
+              style: const TextStyle(
+                color: Colors.black87,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
             Text(
               _timeAgo,
-              style: GoogleFonts.poppins(
-                color: (isDark ? _textLight : Colors.white).withOpacity(0.6),
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
           ],
         ),
         actions: [
           if (isPostOwner)
             IconButton(
-              icon: Icon(Icons.delete, color: isDark ? _textLight : _textDark),
+              icon: const Icon(Icons.delete, color: Colors.black87),
               onPressed: _showDeleteConfirmation,
             ),
         ],
@@ -903,229 +814,115 @@ class _DetailScreenState extends State<DetailScreen> {
             ),
             Padding(
               padding: const EdgeInsets.all(16),
-              child: _buildGlassContainer(
-                height: widget.description.length > 100 ? 200 : 150,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.category,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.description,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      height: 1.5,
+                      color: Colors.black87,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      AnimatedLikeButton(
+                        isLiked: isLiked,
+                        isLoading: _isLiking,
+                        likes: likes,
+                        onTap: _toggleLike,
+                        showLikesList: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (context) => _buildLikesSheet(),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 16),
+                      CommentButton(
+                        commentCount: comments.length,
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (context) => _buildCommentsSheet(),
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // Location card
+            if (widget.latitude != 0 && widget.longitude != 0)
+              Card(
+                margin: const EdgeInsets.all(16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+                child: InkWell(
+                  onTap: () => _showMapBottomSheet(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
+                          padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: isDark ? _accent.withOpacity(0.2) : _accent,
-                            borderRadius: BorderRadius.circular(12),
+                            color: Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
                           ),
+                          child: const Icon(
+                            Icons.location_on,
+                            color: Colors.blue,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
                           child: Text(
-                            widget.category,
-                            style: GoogleFonts.poppins(
-                              color: isDark ? _accent : Colors.white,
-                              fontSize: 12,
+                            'View Location',
+                            style: TextStyle(
+                              fontSize: 16,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
-                        Text(
-                          widget.description,
-                          style: GoogleFonts.poppins(
-                            fontSize: 16,
-                            height: 1.5,
-                            color: isDark ? _textLight : _textDark,
-                          ),
-                          maxLines: widget.description.length > 100 ? null : 3,
-                          overflow:
-                              widget.description.length > 100
-                                  ? null
-                                  : TextOverflow.ellipsis,
-                        ),
-                        const Spacer(),
-                        Row(
-                          children: [
-                            AnimatedLikeButton(
-                              isLiked: isLiked,
-                              isLoading: _isLiking,
-                              likes: likes,
-                              onTap: _toggleLike,
-                              showLikesList: () {
-                                showModalBottomSheet(
-                                  context: context,
-                                  isScrollControlled: true,
-                                  backgroundColor: Colors.transparent,
-                                  builder: (context) => _buildLikesSheet(),
-                                );
-                              },
-                            ),
-                            const SizedBox(width: 16),
-                            CommentButton(
-                              commentCount: comments.length,
-                              onTap: () {
-                                showModalBottomSheet(
-                                  context: context,
-                                  isScrollControlled: true,
-                                  backgroundColor: Colors.transparent,
-                                  builder:
-                                      (context) =>
-                                          _buildDraggableCommentsSheet(),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 16),
+                        const Icon(Icons.chevron_right, color: Colors.grey),
                       ],
                     ),
                   ),
                 ),
               ),
-            ),
-            if (widget.latitude != 0 && widget.longitude != 0)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildGlassContainer(
-                  height: 80,
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _showMapBottomSheet,
-                      borderRadius: BorderRadius.circular(16),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: _accent.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Icon(
-                                Icons.location_on,
-                                color: _accent,
-                                size: 24,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'View Location',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  color: isDark ? _textLight : _textDark,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              Icons.chevron_right,
-                              color: (isDark ? _textLight : _textDark)
-                                  .withOpacity(0.5),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
 
-  void _showDeleteConfirmation() {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
-
-    showDialog(
-      context: context,
-      builder:
-          (context) => Dialog(
-            backgroundColor: Colors.transparent,
-            child: _buildGlassContainer(
-              height: 200,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.delete_outline,
-                      color: Colors.red[400],
-                      size: 40,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Delete Post?',
-                      style: GoogleFonts.poppins(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? _textLight : _textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'This action cannot be undone',
-                      style: GoogleFonts.poppins(
-                        fontSize: 14,
-                        color: (isDark ? _textLight : _textDark).withOpacity(
-                          0.7,
-                        ),
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: Text(
-                            'Cancel',
-                            style: GoogleFonts.poppins(
-                              color: (isDark ? _textLight : _textDark)
-                                  .withOpacity(0.7),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _deletePost();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red[400],
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            shadowColor: Colors.transparent,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: Text(
-                            'Delete',
-                            style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-    );
+  @override
+  void dispose() {
+    _commentController.dispose();
+    _timer?.cancel();
+    _postSubscription.cancel();
+    super.dispose();
   }
 }

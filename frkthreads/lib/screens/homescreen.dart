@@ -462,7 +462,7 @@ class PostListView extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
 
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+    return StreamBuilder(
       stream:
           FirebaseFirestore.instance
               .collection('posts')
@@ -531,7 +531,6 @@ class PostListView extends StatelessWidget {
                                           description:
                                               data['description'] ?? '',
                                           createdAt: createdAt,
-                                          initialCreatedAt: createdAt,
                                           fullName:
                                               data['fullName'] ?? 'Anonymous',
                                           latitude: data['latitude'] ?? 0.0,
@@ -720,10 +719,6 @@ class PostListView extends StatelessWidget {
                                                   createdAt: DateTime.parse(
                                                     data['createdAt'],
                                                   ),
-                                                  initialCreatedAt:
-                                                      DateTime.parse(
-                                                        data['createdAt'],
-                                                      ),
                                                   fullName:
                                                       data['fullName'] ??
                                                       'Anonymous',
@@ -770,10 +765,7 @@ class PostListView extends StatelessWidget {
     );
   }
 
-  Widget buildPostCard(
-    QueryDocumentSnapshot<Map<String, dynamic>> post,
-    BuildContext context,
-  ) {
+  Widget buildPostCard(DocumentSnapshot post, BuildContext context) {
     final data = post.data() as Map<String, dynamic>;
     final imageBase64 = data['image'] as String?;
     final createdAt = DateTime.parse(data['createdAt'] as String);
@@ -790,7 +782,6 @@ class PostListView extends StatelessWidget {
                   imageBase64: imageBase64!,
                   description: data['description'],
                   createdAt: createdAt,
-                  initialCreatedAt: createdAt,
                   fullName: data['fullName'],
                   latitude: data['latitude'],
                   longitude: data['longitude'],

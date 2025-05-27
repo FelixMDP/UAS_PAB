@@ -183,8 +183,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         .doc(widget.userId);
 
     final userDoc = await userRef.get();
-    final targetUserDoc = await targetUserRef.get();
-
     final following = List<String>.from(userDoc.data()?['following'] ?? []);
     final isFollowing = following.contains(widget.userId);
 
@@ -209,7 +207,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
       await NotificationService.instance.createNotification(
         type: 'follow',
         toUserId: widget.userId,
-        description: 'started following you', postId: '',
+        postId: '', // Empty postId for follow notifications
+        description: 'started following you',
       );
     }
   }

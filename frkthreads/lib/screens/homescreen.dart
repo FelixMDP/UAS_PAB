@@ -485,11 +485,11 @@ class PostListView extends StatelessWidget {
           child: ListView.builder(
             itemCount: posts.length,
             itemBuilder: (context, index) {
-              final data = posts[index].data();
-              final imageBase64 = data['image'];
-              final description = data['description'];
+              final data = posts[index].data() as Map<String, dynamic>;
+              final imageBase64 = data['image'] as String?;
+              final description = data['description'] as String? ?? '';
               final createdAtStr = data['createdAt'];
-              final fullName = data['fullName'] ?? 'Anonim';
+              final fullName = data['fullName'] as String? ?? 'Anonim';
 
               DateTime createdAt;
               if (createdAtStr is String) {
@@ -499,6 +499,9 @@ class PostListView extends StatelessWidget {
               } else {
                 createdAt = DateTime.now();
               }
+
+              final List<dynamic> commentDetailsList = data['commentDetails'] as List<dynamic>? ?? [];
+              final int currentCommentCount = commentDetailsList.length;
 
               return AnimationConfiguration.staggeredList(
                 position: index,
@@ -657,7 +660,7 @@ class PostListView extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  description ?? '',
+                                  description,
                                   style: TextStyle(
                                     fontSize: 16,
                                     color:
@@ -665,6 +668,8 @@ class PostListView extends StatelessWidget {
                                             ? Colors.grey[300]
                                             : Colors.black87,
                                   ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
@@ -673,7 +678,7 @@ class PostListView extends StatelessWidget {
                                   children: [
                                     IconButton(
                                       icon: Icon(
-                                        (data['likedBy'] ?? []).contains(
+                                        (data['likedBy'] as List<dynamic>? ?? []).contains(
                                               FirebaseAuth
                                                   .instance
                                                   .currentUser
@@ -682,16 +687,16 @@ class PostListView extends StatelessWidget {
                                             ? Icons.favorite
                                             : Icons.favorite_border,
                                         color:
-                                            (data['likedBy'] ?? []).contains(
+                                            (data['likedBy'] as List<dynamic>? ?? []).contains(
                                                   FirebaseAuth
                                                       .instance
                                                       .currentUser
                                                       ?.uid,
                                                 )
                                                 ? Colors.red
-                                                : isDark
+                                                : (isDark
                                                 ? Colors.grey[400]
-                                                : Colors.grey[600],
+                                                : Colors.grey[600]),
                                       ),
                                       onPressed:
                                           () => _toggleLike(posts[index].id),
@@ -709,34 +714,23 @@ class PostListView extends StatelessWidget {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder:
-                                                (context) => DetailScreen(
-                                                  post: posts[index],
-                                                  postId: posts[index].id,
-                                                  imageBase64: data['image'],
-                                                  description:
-                                                      data['description'] ?? '',
-                                                  createdAt: DateTime.parse(
-                                                    data['createdAt'],
-                                                  ),
-                                                  fullName:
-                                                      data['fullName'] ??
-                                                      'Anonymous',
-                                                  latitude:
-                                                      data['latitude'] ?? 0.0,
-                                                  longitude:
-                                                      data['longitude'] ?? 0.0,
-                                                  category:
-                                                      data['category'] ??
-                                                      'Uncategorized',
-                                                  heroTag:
-                                                      'post_${posts[index].id}',
-                                                ),
+                                            builder: (context) => DetailScreen(
+                                      post: posts[index],
+                                      postId: posts[index].id,
+                                      imageBase64: imageBase64 ?? '', // Beri nilai default jika null
+                                      description: data['description'] as String? ?? '',
+                                      createdAt: createdAt,
+                                      fullName: data['fullName'] as String? ?? 'Anonymous',
+                                      latitude: data['latitude'] as double? ?? 0.0,
+                                      longitude: data['longitude'] as double? ?? 0.0,
+                                      category: data['category'] as String? ?? 'Uncategorized',
+                                      heroTag: 'post_${posts[index].id}',
+                                    ),
                                           ),
                                         );
                                       },
                                     ),
-                                    Text('${(data['comments'] ?? []).length}'),
+                                    Text('$currentCommentCount'),
                                     IconButton(
                                       icon: Icon(
                                         Icons.share_outlined,
@@ -815,7 +809,7 @@ class PostListView extends StatelessWidget {
                 ),
               ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -830,7 +824,7 @@ class PostListView extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Text(
                     data['description'] ?? '',
                     style: const TextStyle(fontSize: 16),

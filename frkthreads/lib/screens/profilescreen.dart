@@ -334,7 +334,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                // Profile Info Section
+
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -442,7 +442,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   StreamBuilder<QuerySnapshot>(
                     stream:
                         FirebaseFirestore.instance
-                            .collection('threads')
+                            .collection('posts')
                             .where('userId', isEqualTo: _uid)
                             .snapshots(),
                     builder: (context, snapshot) {
@@ -509,7 +509,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return StreamBuilder<QuerySnapshot>(
       stream:
           FirebaseFirestore.instance
-              .collection('threads')
+              .collection('posts')
               .where('userId', isEqualTo: _uid)
               .orderBy('createdAt', descending: true)
               .snapshots(),

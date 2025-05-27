@@ -8,7 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
 import 'package:frkthreads/screens/editprofilescreen.dart';
+import 'package:frkthreads/screens/followers_screen.dart';
+import 'package:frkthreads/screens/following_screen.dart';
 import 'package:frkthreads/screens/postdetailscreen.dart';
+import 'package:frkthreads/screens/signinscreen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
@@ -299,7 +302,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               children: [
                 // Profile Image Section
                 Hero(
-                  tag: 'profile-${_uid}',
+                  tag: 'profile-$_uid',
                   child: Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
@@ -456,22 +459,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     },
                   ),
                   _buildDivider(),
-                  GestureDetector(
-                    onTap: _showFollowers,
-                    child: _buildStatItem(
-                      title: 'Followers',
-                      value: followersCount.toString(),
-                      icon: Icons.people,
-                    ),
+                  _buildStatItem(
+                    title: 'Followers',
+                    value: followersCount.toString(),
+                    icon: Icons.people,
+                    onTap: () {
+                      if (_uid != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FollowersScreen(userId: _uid),
+                          ),
+                        );
+                      }
+                    },
                   ),
                   _buildDivider(),
-                  GestureDetector(
-                    onTap: _showFollowing,
-                    child: _buildStatItem(
-                      title: 'Following',
-                      value: followingCount.toString(),
-                      icon: Icons.person_add,
-                    ),
+                  _buildStatItem(
+                    title: 'Following',
+                    value: followingCount.toString(),
+                    icon: Icons.person_add,
+                    onTap: () {
+                      if (_uid != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => FollowingScreen(userId: _uid),
+                          ),
+                        );
+                      }
+                    },
                   ),
                 ],
               ),
@@ -559,7 +576,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               itemBuilder: (context, index) {
                 final post = posts[index].data() as Map<String, dynamic>;
                 final imageBase64 = post['image'] as String?;
-                final timestamp = (post['timestamp'] as Timestamp).toDate();
+
+                // Memperbaiki konversi timestamp
+                DateTime createdAt;
+                if (post['createdAt'] is Timestamp) {
+                  createdAt = (post['createdAt'] as Timestamp).toDate();
+                } else if (post['createdAt'] is String) {
+                  createdAt = DateTime.parse(post['createdAt']);
+                } else {
+                  createdAt =
+                      DateTime.now(); // fallback jika format tidak sesuai
+                }
 
                 return FadeInUp(
                   delay: Duration(milliseconds: index * 50),
@@ -575,7 +602,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 postId: posts[index].id,
                                 imageBase64: imageBase64 ?? '',
                                 description: post['description'] ?? '',
-                                createdAt: timestamp,
+                                createdAt: createdAt,
                                 fullName: post['fullName'] ?? 'Anonymous',
                                 latitude: post['latitude'] ?? 0.0,
                                 longitude: post['longitude'] ?? 0.0,
@@ -753,160 +780,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String title,
     required String value,
     required IconData icon,
+    VoidCallback? onTap,
   }) {
-    return InkWell(
-      onTap: () {
-        HapticFeedback.lightImpact();
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: _textLight.withOpacity(0.9), size: 22),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              style: GoogleFonts.poppins(
-                color: _textLight,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          if (onTap != null) {
+            HapticFeedback.lightImpact();
+            onTap();
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: _textLight.withOpacity(0.9), size: 22),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: GoogleFonts.poppins(
+                  color: _textLight,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            Text(
-              title,
-              style: GoogleFonts.poppins(
-                color: _textLight.withOpacity(0.8),
-                fontSize: 12,
-                letterSpacing: 0.5,
+              Text(
+                title,
+                style: GoogleFonts.poppins(
+                  color: _textLight.withOpacity(0.8),
+                  fontSize: 12,
+                  letterSpacing: 0.5,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // Methods for showing followers/following lists
-  void _showFollowers() async {
-    final userDoc =
-        await FirebaseFirestore.instance.collection('users').doc(_uid).get();
-    final followers = List<String>.from(userDoc.data()?['followers'] ?? []);
-    if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            backgroundColor: _background,
-            title: Text('Followers', style: TextStyle(color: _textLight)),
-            content: SizedBox(
-              width: double.maxFinite,
-              child:
-                  followers.isEmpty
-                      ? Center(
-                        child: Text(
-                          'No followers yet',
-                          style: TextStyle(color: _textLight),
-                        ),
-                      )
-                      : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: followers.length,
-                        itemBuilder: (context, index) {
-                          return FutureBuilder<DocumentSnapshot>(
-                            future:
-                                FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(followers[index])
-                                    .get(),
-                            builder: (context, snapshot) {
-                              if (!snapshot.hasData) {
-                                return const ListTile(
-                                  title: Text('Loading...'),
-                                );
-                              }
-                              final userData =
-                                  snapshot.data!.data() as Map<String, dynamic>;
-                              return ListTile(
-                                title: Text(
-                                  userData['fullName'] ?? 'Anonymous',
-                                  style: TextStyle(color: _textLight),
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text('Close', style: TextStyle(color: _accent)),
-              ),
-            ],
-          ),
+  void _showFollowers() {
+    if (_uid == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => FollowersScreen(userId: _uid)),
     );
   }
 
-  void _showFollowing() async {
-    final userDoc =
-        await FirebaseFirestore.instance.collection('users').doc(_uid).get();
-    final following = List<String>.from(userDoc.data()?['following'] ?? []);
-    if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            backgroundColor: _background,
-            title: Text('Following', style: TextStyle(color: _textLight)),
-            content: SizedBox(
-              width: double.maxFinite,
-              child:
-                  following.isEmpty
-                      ? Center(
-                        child: Text(
-                          'Not following anyone',
-                          style: TextStyle(color: _textLight),
-                        ),
-                      )
-                      : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: following.length,
-                        itemBuilder: (context, index) {
-                          return FutureBuilder<DocumentSnapshot>(
-                            future:
-                                FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(following[index])
-                                    .get(),
-                            builder: (context, snapshot) {
-                              if (!snapshot.hasData) {
-                                return const ListTile(
-                                  title: Text('Loading...'),
-                                );
-                              }
-                              final userData =
-                                  snapshot.data!.data() as Map<String, dynamic>;
-                              return ListTile(
-                                title: Text(
-                                  userData['fullName'] ?? 'Anonymous',
-                                  style: TextStyle(color: _textLight),
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text('Close', style: TextStyle(color: _accent)),
-              ),
-            ],
-          ),
+  void _showFollowing() {
+    if (_uid == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => FollowingScreen(userId: _uid)),
     );
   }
 
@@ -946,9 +874,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   leading: Icon(Icons.logout, color: _textLight),
                   title: Text('Logout', style: TextStyle(color: _textLight)),
                   onTap: () async {
-                    await FirebaseAuth.instance.signOut();
-                    if (!mounted) return;
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder:
+                          (context) => AlertDialog(
+                            backgroundColor: _background,
+                            title: Text(
+                              'Confirm Logout',
+                              style: TextStyle(color: _textLight),
+                            ),
+                            content: Text(
+                              'Are you sure you want to logout? This will clear your local session.',
+                              style: TextStyle(color: _textLight),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed:
+                                    () => Navigator.of(context).pop(false),
+                                child: Text(
+                                  'Cancel',
+                                  style: TextStyle(color: _accent),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed:
+                                    () => Navigator.of(context).pop(true),
+                                child: const Text(
+                                  'Logout',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            ],
+                          ),
+                    );
+
+                    if (confirm == true) {
+                      await FirebaseAuth.instance.signOut();
+                      if (!mounted) return;
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (context) => const SignInScreen(),
+                        ),
+                        (route) => false,
+                      );
+                    }
                   },
                 ),
               ],
@@ -971,12 +940,12 @@ class PostCard extends StatefulWidget {
   final Function(DateTime) getTimeAgo;
 
   const PostCard({
-    Key? key,
+    super.key,
     required this.post,
     required this.timestamp,
     required this.index,
     required this.getTimeAgo,
-  }) : super(key: key);
+  });
 
   @override
   State<PostCard> createState() => _PostCardState();

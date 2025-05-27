@@ -714,8 +714,8 @@ class CommentTile extends StatelessWidget {
     required this.userName,
     required this.text,
     required this.createdAt,
-    Key? key,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {

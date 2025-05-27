@@ -12,8 +12,7 @@ class StoryScreen extends StatefulWidget {
   final Story story;
   final VoidCallback onComplete;
 
-  const StoryScreen({Key? key, required this.story, required this.onComplete})
-      : super(key: key);
+  const StoryScreen({super.key, required this.story, required this.onComplete});
 
   @override
   State<StoryScreen> createState() => _StoryScreenState();

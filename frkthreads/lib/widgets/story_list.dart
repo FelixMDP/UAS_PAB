@@ -11,7 +11,7 @@ import 'package:frkthreads/screens/add_story_screen.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 class StoryList extends StatelessWidget {
-  const StoryList({Key? key}) : super(key: key);
+  const StoryList({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -236,7 +236,7 @@ class StoryList extends StatelessWidget {
                 backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
                 // PERUBAHAN: Gunakan MemoryImage untuk base64 jika ada userStory
                 backgroundImage: hasUserStoryImage
-                    ? MemoryImage(base64Decode(userStory!.imageBase64!))
+                    ? MemoryImage(base64Decode(userStory.imageBase64!))
                     : null,
                 child: !hasUserStoryImage // Tampilkan ikon tambah atau inisial
                     ? Icon(

@@ -12,7 +12,7 @@ class AnimatedLikeButton extends StatelessWidget {
   final bool isDarkMode;          // Parameter baru
 
   const AnimatedLikeButton({
-    Key? key,
+    super.key,
     required this.isLiked,
     required this.isLoading,
     required this.likes,
@@ -21,7 +21,7 @@ class AnimatedLikeButton extends StatelessWidget {
     this.showLikesList,      // Tambahkan ke constructor
     required this.accentColor, // Tambahkan ke constructor
     required this.isDarkMode,   // Tambahkan ke constructor
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -104,12 +104,12 @@ class CommentButton extends StatelessWidget {
   final bool isDarkMode;   // Parameter baru
 
   const CommentButton({
-    Key? key,
+    super.key,
     required this.commentCount,
     required this.onTap,
     required this.accentColor, // Tambahkan di constructor
     required this.isDarkMode,   // Tambahkan di constructor
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

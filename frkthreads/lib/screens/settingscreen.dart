@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
-import 'package:frkthreads/providers/theme_provider.dart'; // Pastikan path ini benar
+import 'package:frkthreads/providers/theme_provider.dart';
+import 'package:frkthreads/screens/signinscreen.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
+  const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -12,12 +13,13 @@ class SettingsScreen extends StatelessWidget {
     final isDark = themeProvider.isDarkMode;
 
     // Tentukan warna berdasarkan tema untuk konsistensi
-    final currentBackgroundColor = isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2);
-    final currentAppBarColor = isDark ? Colors.grey[900] : const Color(0xFFB88C66);
+    final currentBackgroundColor =
+        isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2);
+    final currentAppBarColor =
+        isDark ? Colors.grey[900] : const Color(0xFFB88C66);
     final currentTextColor = isDark ? Colors.white : const Color(0xFF293133);
     final currentIconColor = isDark ? Colors.white70 : Colors.black87;
     final currentListTileTextColor = isDark ? Colors.white : Colors.black87;
-
 
     return Scaffold(
       backgroundColor: currentBackgroundColor,
@@ -31,7 +33,10 @@ class SettingsScreen extends StatelessWidget {
         children: [
           ListTile(
             leading: Icon(Icons.color_lens, color: currentIconColor),
-            title: Text('Dark Mode', style: TextStyle(color: currentListTileTextColor)),
+            title: Text(
+              'Dark Mode',
+              style: TextStyle(color: currentListTileTextColor),
+            ),
             trailing: Switch(
               value: isDark,
               onChanged: (value) {
@@ -45,13 +50,17 @@ class SettingsScreen extends StatelessWidget {
           const Divider(), // Pemisah antar item
           ListTile(
             leading: Icon(Icons.logout, color: currentIconColor),
-            title: Text('Logout', style: TextStyle(color: currentListTileTextColor)),
+            title: Text(
+              'Logout',
+              style: TextStyle(color: currentListTileTextColor),
+            ),
             onTap: () async {
               await FirebaseAuth.instance.signOut();
               if (!context.mounted) return;
-              // Pastikan Anda memiliki route bernama '/signin' atau ganti dengan halaman login yang sesuai
-              // Menggunakan pushNamedAndRemoveUntil untuk membersihkan stack navigasi
-              Navigator.of(context).pushNamedAndRemoveUntil('/signin', (Route<dynamic> route) => false);
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const SignInScreen()),
+                (route) => false,
+              );
             },
           ),
           // Tambahkan opsi pengaturan lainnya di sini jika perlu

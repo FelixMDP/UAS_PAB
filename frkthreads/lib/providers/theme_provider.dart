@@ -38,7 +38,6 @@ class ThemeProvider with ChangeNotifier {
       primary: _lightPrimary,
       secondary: _lightSecondary,
       surface: _lightSurface,
-      background: _lightBackground,
       error: _lightError,
     ),
     scaffoldBackgroundColor: _lightBackground,
@@ -85,12 +84,13 @@ class ThemeProvider with ChangeNotifier {
         padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ).copyWith(
-        overlayColor: MaterialStateProperty.resolveWith<Color?>((
-          Set<MaterialState> states,
+        overlayColor: WidgetStateProperty.resolveWith<Color?>((
+          Set<WidgetState> states,
         ) {
-          if (states.contains(MaterialState.hovered))
+          if (states.contains(WidgetState.hovered)) {
             return _lightPrimary.withOpacity(0.8);
-          if (states.contains(MaterialState.pressed)) return _lightSecondary;
+          }
+          if (states.contains(WidgetState.pressed)) return _lightSecondary;
           return null;
         }),
       ),
@@ -140,7 +140,6 @@ class ThemeProvider with ChangeNotifier {
       primary: _darkPrimary,
       secondary: _darkSecondary,
       surface: _darkSurface,
-      background: _darkBackground,
       error: _darkError,
     ),
     scaffoldBackgroundColor: _darkBackground,
@@ -187,12 +186,13 @@ class ThemeProvider with ChangeNotifier {
         padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ).copyWith(
-        overlayColor: MaterialStateProperty.resolveWith<Color?>((
-          Set<MaterialState> states,
+        overlayColor: WidgetStateProperty.resolveWith<Color?>((
+          Set<WidgetState> states,
         ) {
-          if (states.contains(MaterialState.hovered))
+          if (states.contains(WidgetState.hovered)) {
             return _darkPrimary.withOpacity(0.8);
-          if (states.contains(MaterialState.pressed)) return _darkSecondary;
+          }
+          if (states.contains(WidgetState.pressed)) return _darkSecondary;
           return null;
         }),
       ),

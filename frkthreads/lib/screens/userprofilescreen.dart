@@ -12,7 +12,7 @@ import 'package:frkthreads/services/notification_service.dart';
 class UserProfileScreen extends StatefulWidget {
   final String userId;
 
-  const UserProfileScreen({Key? key, required this.userId}) : super(key: key);
+  const UserProfileScreen({super.key, required this.userId});
 
   @override
   State<UserProfileScreen> createState() => _UserProfileScreenState();
@@ -214,8 +214,9 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   }
 
   Widget _buildFollowButton() {
-    if (_currentUid == widget.userId)
+    if (_currentUid == widget.userId) {
       return const SizedBox.shrink(); // Don't show button on own profile
+    }
 
     return StreamBuilder<bool>(
       stream: _isFollowingStream,
@@ -659,12 +660,12 @@ class PostCard extends StatefulWidget {
   final Function(DateTime) getTimeAgo;
 
   const PostCard({
-    Key? key,
+    super.key,
     required this.post,
     required this.timestamp,
     required this.index,
     required this.getTimeAgo,
-  }) : super(key: key);
+  });
 
   @override
   State<PostCard> createState() => _PostCardState();

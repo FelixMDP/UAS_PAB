@@ -3,9 +3,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:frkthreads/screens/userprofilescreen.dart'; // Pastikan import ini benar
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
-import 'package:frkthreads/screens/detail_screen.dart';
+// import 'package:frkthreads/screens/detail_screen.dart'; // Tidak digunakan di kode ini
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -16,9 +17,12 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final _currentUserId = FirebaseAuth.instance.currentUser?.uid;
+  // final _currentUserId = FirebaseAuth.instance.currentUser?.uid; // Tidak digunakan di _searchUsers versi ini
   List<DocumentSnapshot> _searchResults = [];
   bool _isLoading = false;
+
+  // HAPUS BARIS INI KARENA TIDAK DIGUNAKAN DAN DIBAYANGI OLEH VARIABEL LOKAL:
+  // get imageBytes => null;
 
   @override
   void dispose() {
@@ -41,15 +45,18 @@ class _SearchScreenState extends State<SearchScreen> {
     try {
       // Get all users and filter them locally for case-insensitive search
       final QuerySnapshot result =
-          await FirebaseFirestore.instance.collection('users').get();
+          await FirebaseFirestore.instance.collection('users').get(); // Sudah benar 'users'
 
-      final filteredDocs =
-          result.docs.where((doc) {
-            final fullName =
-                (doc.data() as Map<String, dynamic>)['fullName'] as String? ??
-                '';
-            return fullName.toLowerCase().contains(query.toLowerCase());
-          }).toList();
+      final String lowerCaseQuery = query.toLowerCase();
+      final filteredDocs = result.docs.where((doc) {
+        // Filter agar pengguna saat ini tidak muncul di hasil pencarian (opsional, jika diinginkan)
+        // if (doc.id == _currentUserId) {
+        //   return false;
+        // }
+        final fullName =
+            (doc.data() as Map<String, dynamic>)['fullName'] as String? ?? '';
+        return fullName.toLowerCase().contains(lowerCaseQuery);
+      }).toList();
 
       setState(() {
         _searchResults = filteredDocs;
@@ -59,162 +66,15 @@ class _SearchScreenState extends State<SearchScreen> {
       setState(() {
         _isLoading = false;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error searching users: $error')));
+      if (mounted) { // Tambahkan pengecekan mounted
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error searching users: $error')));
+      }
     }
   }
 
-  void _viewUserProfile(BuildContext context, DocumentSnapshot userDoc) async {
-    // Get user's posts
-    final postsSnapshot = await FirebaseFirestore.instance
-        .collection('posts')
-        .where('userId', isEqualTo: userDoc.id)
-        .orderBy('createdAt', descending: true)
-        .get();
-
-    if (!mounted) return;
-
-    // Show bottom sheet with user's posts
-    showModalBottomSheet(
-      // ignore: use_build_context_synchronously
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.9,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) {
-          final data = userDoc.data() as Map<String, dynamic>;
-          final fullName = data['fullName'] as String? ?? 'Anonymous';
-          final bio = data['bio'] as String? ?? 'No bio yet';
-          final profileImage = data['profileImage'] as String?;
-
-          return Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                        color: Colors.grey.withOpacity(0.2),
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 30,
-                        backgroundColor: Colors.grey[300],
-                        child: profileImage != null
-                            ? ClipOval(
-                                child: Image.memory(
-                                  base64Decode(profileImage),
-                                  width: 60,
-                                  height: 60,
-                                  fit: BoxFit.cover,
-                                ),
-                              )
-                            : Text(
-                                fullName[0].toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              fullName,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              bio,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[600],
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: postsSnapshot.docs.isEmpty
-                      ? const Center(
-                          child: Text('No posts yet'),
-                        )
-                      : GridView.builder(
-                          controller: scrollController,
-                          padding: const EdgeInsets.all(2),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            crossAxisSpacing: 2,
-                            mainAxisSpacing: 2,
-                          ),
-                          itemCount: postsSnapshot.docs.length,
-                          itemBuilder: (context, index) {
-                            final post = postsSnapshot.docs[index];
-                            final postData = post.data();
-                            final imageBase64 = postData['image'] as String?;
-
-                            return GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => DetailScreen(post: post),
-                                  ),
-                                );
-                              },
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[300],
-                                  image: imageBase64 != null
-                                      ? DecorationImage(
-                                          image: MemoryImage(
-                                            base64Decode(imageBase64),
-                                          ),
-                                          fit: BoxFit.cover,
-                                        )
-                                      : null,
-                                ),
-                                child: imageBase64 == null
-                                    ? const Icon(
-                                        Icons.image_not_supported,
-                                        color: Colors.grey,
-                                      )
-                                    : null,
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
+  // Fungsi _viewUserProfile sudah tidak ada, digantikan navigasi langsung ke UserProfileScreen
+  // Ini adalah perubahan yang baik dan menyederhanakan SearchScreen.
 
   @override
   Widget build(BuildContext context) {
@@ -269,72 +129,110 @@ class _SearchScreenState extends State<SearchScreen> {
                       : ListView.builder(
                           itemCount: _searchResults.length,
                           itemBuilder: (context, index) {
-                            // ... (kode Anda yang lain di dalam itemBuilder ListView.builder)
+                            final userData = _searchResults[index].data()
+                                as Map<String, dynamic>;
+                            final fullName =
+                                userData['fullName'] as String? ?? 'Anonymous';
+                            final bio = userData['bio'] as String? ?? 'No bio yet';
+                            final profileImageBase64 =
+                                userData['profileImage'] as String?; // Pastikan field 'profileImage' ada di Firestore
+                            final initialLetter = fullName.isNotEmpty
+                                ? fullName[0].toUpperCase()
+                                : '?';
+                            final String userId = _searchResults[index].id; // Untuk logging dan navigasi
 
-final userData = _searchResults[index].data()
-    as Map<String, dynamic>;
-final fullName =
-    userData['fullName'] as String? ?? 'Anonymous';
-final bio = userData['bio'] as String? ?? 'No bio yet';
-final profileImageBase64 =
-    userData['profileImage'] as String?;
-    final initialLetter = fullName.isNotEmpty ? fullName[0].toUpperCase() : '?';
-
-    
-
-return ListTile(
-  onTap: () => _viewUserProfile(context, _searchResults[index]),
-  leading: Builder(
-    builder: (_) {
-      Uint8List? imageBytes;
-      if (profileImageBase64 != null && profileImageBase64.isNotEmpty) {
-        try {
-          imageBytes = base64Decode(profileImageBase64);
-        } catch (e) {
-          debugPrint('Invalid base64 profile image: $e');
-        }
-      }
-
-      return CircleAvatar(
-        radius: 18,
-        backgroundColor: isDark ? Colors.grey[700] : Colors.white.withOpacity(0.7),
-        child: imageBytes != null
-            ? ClipOval(
-                child: Image.memory(
-                  imageBytes,
-                  width: 36,
-                  height: 36,
-                  fit: BoxFit.cover,
-                ),
-              )
-            : Text(
-                initialLetter,
-                style: TextStyle(
-                  color: isDark ? Colors.white70 : Colors.black54,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-      );
-    },
-  ),
-  title: Text(
-    fullName,
-    style: TextStyle(
-      color: isDark ? Colors.white : Colors.black87,
-      fontWeight: FontWeight.bold,
-    ),
-  ),
-  subtitle: Text(
-    bio,
-    style: TextStyle(
-      color: isDark ? Colors.white60 : Colors.black54,
-    ),
-    maxLines: 1,
-    overflow: TextOverflow.ellipsis,
-  ),
-);
+                            // Debug print untuk melihat data
+                            print("--- Rendering User: $fullName (ID: $userId) ---");
+                            print("profileImageBase64: ${profileImageBase64?.substring(0, (profileImageBase64.length > 30 ? 30 : profileImageBase64.length))}..."); // Cetak sebagian kecil saja
+                            print("initialLetter: $initialLetter");
 
 
+                            return ListTile(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => UserProfileScreen(
+                                      userId: userId, // Menggunakan userId yang sudah diambil
+                                    ),
+                                  ),
+                                );
+                              },
+                              leading: Builder( // Menggunakan Builder untuk logika avatar
+                                builder: (BuildContext _) { // Memberi nama parameter jika tidak digunakan
+                                  Uint8List? imageBytes;
+                                  String? effectiveBase64 = profileImageBase64;
+
+                                  if (effectiveBase64 != null && effectiveBase64.isNotEmpty) {
+                                    // Membersihkan prefix data URI jika ada
+                                    if (effectiveBase64.startsWith('data:image')) {
+                                      effectiveBase64 = effectiveBase64.substring(effectiveBase64.indexOf(',') + 1);
+                                      print("Base64 prefix removed for user: $fullName");
+                                    }
+                                    try {
+                                      imageBytes = base64Decode(effectiveBase64);
+                                    } catch (e) {
+                                      debugPrint(
+                                          'Invalid base64 profile image for $fullName (ID: $userId): $e');
+                                      imageBytes = null; // Pastikan imageBytes null jika decode gagal
+                                    }
+                                  }
+
+                                  return CircleAvatar(
+                                    radius: 18,
+                                    backgroundColor: isDark
+                                        ? Colors.grey[700]
+                                        : Colors.white.withOpacity(0.7),
+                                    child: imageBytes != null
+                                        ? ClipOval(
+                                            child: Image.memory(
+                                              imageBytes,
+                                              width: 36,
+                                              height: 36,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) {
+                                                // Fallback jika Image.memory gagal render bytes (meskipun base64 valid)
+                                                debugPrint('Error rendering image memory for $fullName (ID: $userId): $error');
+                                                return Text(
+                                                  initialLetter,
+                                                  style: TextStyle(
+                                                    color: isDark
+                                                        ? Colors.white70
+                                                        : Colors.black54,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          )
+                                        : Text( // Fallback jika imageBytes null
+                                            initialLetter,
+                                            style: TextStyle(
+                                              color: isDark
+                                                  ? Colors.white70
+                                                  : Colors.black54,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                  );
+                                },
+                              ),
+                              title: Text(
+                                fullName,
+                                style: TextStyle(
+                                  color: isDark ? Colors.white : Colors.black87,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: Text(
+                                bio,
+                                style: TextStyle(
+                                  color: isDark ? Colors.white60 : Colors.black54,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
                           },
                         ),
             ),

@@ -463,11 +463,10 @@ class PostListView extends StatelessWidget {
     final isDark = themeProvider.isDarkMode;
 
     return StreamBuilder(
-      stream:
-          FirebaseFirestore.instance
-              .collection('posts')
-              .orderBy('createdAt', descending: true)
-              .snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection('posts')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return Center(
@@ -490,7 +489,7 @@ class PostListView extends StatelessWidget {
               final description = data['description'] as String? ?? '';
               final createdAtStr = data['createdAt'];
               final fullName = data['fullName'] as String? ?? 'Anonim';
-
+              
               DateTime createdAt;
               if (createdAtStr is String) {
                 createdAt = DateTime.tryParse(createdAtStr) ?? DateTime.now();
@@ -509,87 +508,116 @@ class PostListView extends StatelessWidget {
                 child: SlideAnimation(
                   verticalOffset: 50.0,
                   child: FadeInAnimation(
-                    child: Card(
-                      margin: const EdgeInsets.all(10),
-                      color: isDark ? Colors.grey[850] : Colors.white,
-                      elevation: 4,
-                      shadowColor: Colors.black26,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: isDark
+                              ? [
+                                  Colors.grey[850]!,
+                                  Colors.grey[900]!,
+                                ]
+                              : [
+                                  const Color(0xFFFFF3E0),
+                                  const Color(0xFFFFE0B2),
+                                ],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isDark
+                                ? Colors.black.withOpacity(0.3)
+                                : Colors.grey.withOpacity(0.3),
+                            offset: const Offset(0, 4),
+                            blurRadius: 12,
+                          ),
+                        ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (imageBase64 != null)
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder:
-                                        (context) => DetailScreen(
-                                          post: posts[index],
-                                          postId: posts[index].id,
-                                          imageBase64: imageBase64,
-                                          description:
-                                              data['description'] ?? '',
-                                          createdAt: createdAt,
-                                          fullName:
-                                              data['fullName'] ?? 'Anonymous',
-                                          latitude: data['latitude'] ?? 0.0,
-                                          longitude: data['longitude'] ?? 0.0,
-                                          category:
-                                              data['category'] ??
-                                              'Uncategorized',
-                                          heroTag: 'post_${posts[index].id}',
-                                        ),
-                                  ),
-                                );
-                              },
-                              child: Hero(
-                                tag: 'post_${posts[index].id}',
-                                child: ClipRRect(
-                                  borderRadius: const BorderRadius.vertical(
-                                    top: Radius.circular(15),
-                                  ),
-                                  child: Image.memory(
-                                    base64Decode(imageBase64),
-                                    fit: BoxFit.cover,
-                                    width: double.infinity,
-                                    height: 200,
-                                  ),
-                                ),
-                              ),
+                          ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(20),
                             ),
+                            child: Stack(
+                              children: [
+                                if (imageBase64 != null)
+                                  GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => DetailScreen(
+                                            post: posts[index],
+                                            postId: posts[index].id,
+                                            imageBase64: imageBase64,
+                                            description: description,
+                                            createdAt: createdAt,
+                                            fullName: fullName,
+                                            latitude: data['latitude'] ?? 0.0,
+                                            longitude: data['longitude'] ?? 0.0,
+                                            category: data['category'] ?? 'Uncategorized',
+                                            heroTag: 'post_${posts[index].id}',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Hero(
+                                      tag: 'post_${posts[index].id}',
+                                      child: Image.memory(
+                                        base64Decode(imageBase64),
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        height: 250,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                           Padding(
-                            padding: const EdgeInsets.all(12),
+                            padding: const EdgeInsets.all(16),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Row(
                                       children: [
-                                        CircleAvatar(
-                                          backgroundColor:
-                                              isDark
-                                                  ? Colors.grey[700]
-                                                  : Colors.grey[200],
-                                          radius: 20,
-                                          child: Text(
-                                            fullName[0].toUpperCase(),
-                                            style: TextStyle(
-                                              color:
-                                                  isDark
-                                                      ? Colors.white
-                                                      : Colors.black87,
-                                              fontWeight: FontWeight.bold,
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: isDark
+                                                    ? Colors.black.withOpacity(0.3)
+                                                    : Colors.grey.withOpacity(0.3),
+                                                blurRadius: 8,
+                                              ),
+                                            ],
+                                          ),
+                                          child: CircleAvatar(
+                                            backgroundColor: isDark
+                                                ? Colors.grey[800]
+                                                : Colors.white,
+                                            radius: 24,
+                                            child: Text(
+                                              fullName[0].toUpperCase(),
+                                              style: TextStyle(
+                                                color: isDark
+                                                    ? Colors.white
+                                                    : Colors.black87,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 18,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 8),
+                                        const SizedBox(width: 12),
                                         Column(
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
@@ -599,20 +627,18 @@ class PostListView extends StatelessWidget {
                                               style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.w600,
-                                                color:
-                                                    isDark
-                                                        ? Colors.white
-                                                        : Colors.black87,
+                                                color: isDark
+                                                    ? Colors.white
+                                                    : Colors.black87,
                                               ),
                                             ),
                                             Text(
                                               formatTime(createdAt),
                                               style: TextStyle(
                                                 fontSize: 12,
-                                                color:
-                                                    isDark
-                                                        ? Colors.grey[400]
-                                                        : Colors.grey[600],
+                                                color: isDark
+                                                    ? Colors.grey[400]
+                                                    : Colors.grey[600],
                                               ),
                                             ),
                                           ],
@@ -658,88 +684,67 @@ class PostListView extends StatelessWidget {
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 12),
                                 Text(
                                   description,
                                   style: TextStyle(
                                     fontSize: 16,
-                                    color:
-                                        isDark
-                                            ? Colors.grey[300]
-                                            : Colors.black87,
+                                    color: isDark
+                                        ? Colors.grey[300]
+                                        : Colors.black87,
+                                    height: 1.4,
                                   ),
-                                  maxLines: 2,
+                                  maxLines: 3,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 16),
                                 Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceEvenly,
+                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                                   children: [
-                                    IconButton(
-                                      icon: Icon(
-                                        (data['likedBy'] as List<dynamic>? ?? []).contains(
-                                              FirebaseAuth
-                                                  .instance
-                                                  .currentUser
-                                                  ?.uid,
-                                            )
-                                            ? Icons.favorite
-                                            : Icons.favorite_border,
-                                        color:
-                                            (data['likedBy'] as List<dynamic>? ?? []).contains(
-                                                  FirebaseAuth
-                                                      .instance
-                                                      .currentUser
-                                                      ?.uid,
-                                                )
-                                                ? Colors.red
-                                                : (isDark
-                                                ? Colors.grey[400]
-                                                : Colors.grey[600]),
-                                      ),
-                                      onPressed:
-                                          () => _toggleLike(posts[index].id),
+                                    _buildInteractionButton(
+                                      icon: (data['likedBy'] as List<dynamic>? ?? [])
+                                              .contains(FirebaseAuth.instance.currentUser?.uid)
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      color: (data['likedBy'] as List<dynamic>? ?? [])
+                                              .contains(FirebaseAuth.instance.currentUser?.uid)
+                                          ? Colors.red
+                                          : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                                      count: data['likes'] ?? 0,
+                                      onTap: () => _toggleLike(posts[index].id),
+                                      isDark: isDark,
                                     ),
-                                    Text('${data['likes'] ?? 0}'),
-                                    IconButton(
-                                      icon: Icon(
-                                        Icons.comment_outlined,
-                                        color:
-                                            isDark
-                                                ? Colors.grey[400]
-                                                : Colors.grey[600],
-                                      ),
-                                      onPressed: () {
+                                    _buildInteractionButton(
+                                      icon: Icons.comment_outlined,
+                                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                      count: currentCommentCount,
+                                      onTap: () {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
                                             builder: (context) => DetailScreen(
-                                      post: posts[index],
-                                      postId: posts[index].id,
-                                      imageBase64: imageBase64 ?? '', // Beri nilai default jika null
-                                      description: data['description'] as String? ?? '',
-                                      createdAt: createdAt,
-                                      fullName: data['fullName'] as String? ?? 'Anonymous',
-                                      latitude: data['latitude'] as double? ?? 0.0,
-                                      longitude: data['longitude'] as double? ?? 0.0,
-                                      category: data['category'] as String? ?? 'Uncategorized',
-                                      heroTag: 'post_${posts[index].id}',
-                                    ),
+                                              post: posts[index],
+                                              postId: posts[index].id,
+                                              imageBase64: imageBase64 ?? '',
+                                              description: description,
+                                              createdAt: createdAt,
+                                              fullName: fullName,
+                                              latitude: data['latitude'] ?? 0.0,
+                                              longitude: data['longitude'] ?? 0.0,
+                                              category: data['category'] ?? 'Uncategorized',
+                                              heroTag: 'post_${posts[index].id}',
+                                            ),
                                           ),
                                         );
                                       },
+                                      isDark: isDark,
                                     ),
-                                    Text('$currentCommentCount'),
-                                    IconButton(
-                                      icon: Icon(
-                                        Icons.share_outlined,
-                                        color:
-                                            isDark
-                                                ? Colors.grey[400]
-                                                : Colors.grey[600],
-                                      ),
-                                      onPressed: () => _handleShare(data),
+                                    _buildInteractionButton(
+                                      icon: Icons.share_outlined,
+                                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                      count: null,
+                                      onTap: () => _handleShare(data),
+                                      isDark: isDark,
                                     ),
                                   ],
                                 ),
@@ -759,119 +764,41 @@ class PostListView extends StatelessWidget {
     );
   }
 
-  Widget buildPostCard(DocumentSnapshot post, BuildContext context) {
-    final data = post.data() as Map<String, dynamic>;
-    final imageBase64 = data['image'] as String?;
-    final createdAt = DateTime.parse(data['createdAt'] as String);
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder:
-                (context) => DetailScreen(
-                  post: post,
-                  postId: post.id,
-                  imageBase64: imageBase64!,
-                  description: data['description'],
-                  createdAt: createdAt,
-                  fullName: data['fullName'],
-                  latitude: data['latitude'],
-                  longitude: data['longitude'],
-                  category: data['category'],
-                  heroTag: 'post_${post.id}',
-                ),
+  Widget _buildInteractionButton({
+    required IconData icon,
+    required Color? color,
+    required Function() onTap,
+    required bool isDark,
+    int? count,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[850]!.withOpacity(0.5) : Colors.white.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Icon(icon, color: color, size: 20),
+                if (count != null) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    count.toString(),
+                    style: TextStyle(
+                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-        );
-      },
-      child: Card(
-        margin: const EdgeInsets.all(10),
-        color: Colors.white, // Using the consistent card color.
-        elevation: 2, // Added a small elevation for better appearance
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (imageBase64 != null)
-              Hero(
-                tag: 'post_${post.id}',
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(10),
-                  ),
-                  child: Image.memory(
-                    base64Decode(imageBase64),
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: 200,
-                  ),
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    formatTime(createdAt),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  Text(
-                    data['fullName'] ?? 'Anonim',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    data['description'] ?? '',
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: Icon(
-                      (data['likedBy'] ?? []).contains(
-                            FirebaseAuth.instance.currentUser?.uid,
-                          )
-                          ? Icons.favorite
-                          : Icons.favorite_border,
-                      color:
-                          (data['likedBy'] ?? []).contains(
-                                FirebaseAuth.instance.currentUser?.uid,
-                              )
-                              ? Colors.red
-                              : null,
-                    ),
-                    onPressed: () => _toggleLike(post.id),
-                  ),
-                  Text('${data['likes'] ?? 0}'),
-                  const SizedBox(width: 16),
-                  IconButton(
-                    icon: const Icon(Icons.comment_outlined),
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/post', arguments: post.id);
-                    },
-                  ),
-                  Text('${(data['comments'] ?? []).length}'),
-                  if (data['latitude'] != null && data['longitude'] != null)
-                    IconButton(
-                      icon: const Icon(Icons.location_on),
-                      onPressed: () {
-                        _showLocationMap(context, data);
-                      },
-                    ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );
@@ -939,5 +866,5 @@ class PostListView extends StatelessWidget {
     );
   }
 
-  // Notification functionality moved to a separate service
+
 }

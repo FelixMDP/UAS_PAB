@@ -18,17 +18,28 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-// Color constants
-const Color _background = Color(0xFF2D3B3A);
-const Color _accent = Color(0xFFB88C66);
-const Color _card = Color(0xFFEFEFEF);
-const Color _textLight = Colors.white;
-const Color _textDark = Colors.black87;
-
 class _ProfileScreenState extends State<ProfileScreen> {
   final _uid = FirebaseAuth.instance.currentUser?.uid;
-
   int _selectedTab = 0;
+  
+  late Color _background;
+  late Color _accent;
+  late Color _card;
+  late Color _textLight;
+  late Color _textDark;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
+    // Set colors based on theme
+    _background = isDark ? const Color(0xFF2D3B3A) : const Color(0xFFF1E9D2);
+    _accent = const Color(0xFFB88C66);
+    _card = isDark ? Colors.grey[850]! : const Color(0xFFEFEFEF);
+    _textLight = isDark ? Colors.white : Colors.black87;
+    _textDark = isDark ? Colors.black87 : Colors.white;
+  }
 
   String _getTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
@@ -727,51 +738,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
-  Widget _buildGrid(List<DocumentSnapshot> posts) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
-
-    return GridView.builder(
-      padding: const EdgeInsets.all(2),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 2,
-        mainAxisSpacing: 2,
-      ),
-      itemCount: posts.length,
-      itemBuilder: (context, index) {
-        final data = posts[index].data() as Map<String, dynamic>;
-        final imageBase64 = data['image'] as String?;
-
-        return Card(
-          elevation: isDark ? 1 : 2,
-          color: isDark ? Colors.grey[850] : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-          clipBehavior: Clip.antiAlias,
-          child: imageBase64 != null && imageBase64.isNotEmpty
-              ? Image.memory(
-                  base64Decode(imageBase64), 
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: isDark ? Colors.grey[800] : Colors.grey[200],
-                    child: Icon(
-                      Icons.broken_image, 
-                      color: isDark ? Colors.white38: Colors.grey,
-                    ),
-                  ),
-                )
-              : Container(
-                  color: isDark ? Colors.grey[800] : Colors.grey[200],
-                  child: Icon(
-                    Icons.image_not_supported,
-                    color: isDark ? Colors.white38 : Colors.grey,
-                  ),
-                ),
-        );
-      },
-    );
-  }
+  // Removed unused _buildGrid method
 
   Widget _buildStatItem({
     required String title,
@@ -838,6 +805,9 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   bool _isHovered = false;
+  
+  late Color _card;
+  late Color _textDark;
 
   @override
   void initState() {
@@ -849,6 +819,16 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
     _scaleAnimation = Tween<double>(begin: 1, end: 1.05).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
+    _card = isDark ? Colors.grey[850]! : const Color(0xFFEFEFEF);
+    _textDark = isDark ? Colors.black87 : Colors.white;
   }
 
   @override

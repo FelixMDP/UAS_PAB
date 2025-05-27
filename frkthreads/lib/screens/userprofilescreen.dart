@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:provider/provider.dart';
+import 'package:frkthreads/providers/theme_provider.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String userId;
@@ -16,13 +18,27 @@ class UserProfileScreen extends StatefulWidget {
 }
 
 class _UserProfileScreenState extends State<UserProfileScreen> {
-  static const Color _background = Color(0xFF2D3B3A);
-  static const Color _accent = Color(0xFFB88C66);
-  static const Color _card = Color(0xFFEFEFEF);
-  static const Color _textLight = Colors.white;
-  static const Color _textDark = Colors.black87;
-
   int _selectedTab = 0;
+  
+  late Color _background;
+  late Color _accent;
+  late Color _card;
+  late Color _textLight;
+  late Color _textDark;
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
+    // Set colors based on theme
+    _background = isDark ? const Color(0xFF2D3B3A) : const Color(0xFFF1E9D2);
+    _accent = const Color(0xFFB88C66);
+    _card = isDark ? Colors.grey[850]! : const Color(0xFFEFEFEF);
+    _textLight = isDark ? Colors.white : Colors.black87;
+    _textDark = isDark ? Colors.black87 : Colors.white;
+  }
 
   String _getTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
@@ -524,10 +540,18 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
   bool _isHovered = false;
+  late Color _card;
+  late Color _textDark;
 
-  // Colors
-  static const Color _card = Color(0xFFEFEFEF);
-  static const Color _textDark = Colors.black87;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDark = themeProvider.isDarkMode;
+
+    _card = isDark ? Colors.grey[850]! : const Color(0xFFEFEFEF);
+    _textDark = isDark ? Colors.white : Colors.black87;
+  }
 
   @override
   void initState() {
@@ -611,17 +635,16 @@ class _PostCardState extends State<PostCard> with SingleTickerProviderStateMixin
                               ),
                             ),
                             Row(
-                              children: [
-                                Icon(
+                              children: [                              Icon(
                                   Icons.favorite_border,
                                   size: 16,
-                                  color: _UserProfileScreenState._textDark.withOpacity(0.6),
+                                  color: _textDark.withOpacity(0.6),
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
                                   '0',
                                   style: GoogleFonts.poppins(
-                                    color: _UserProfileScreenState._textDark.withOpacity(0.6),
+                                    color: _textDark.withOpacity(0.6),
                                     fontSize: 12,
                                   ),
                                 ),

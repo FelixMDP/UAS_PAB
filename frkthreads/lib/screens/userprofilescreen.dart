@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:frkthreads/screens/postdetailscreen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:shimmer/shimmer.dart';
@@ -317,26 +318,28 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     return Container(height: 40, width: 1, color: _textLight.withOpacity(0.2));
   }
 
-  Widget _buildCustomTabBar() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      height: 60,
+ Widget _buildTabButtons() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: _buildGlassContainer(
-        height: 60,
-        borderRadius: 30,
-        child: Row(
-          children: [
-            _buildTabButton(
-              title: 'Posts',
-              icon: Icons.grid_on_rounded,
-              index: 0,
-            ),
-            _buildTabButton(
-              title: 'Liked',
-              icon: Icons.favorite_rounded,
-              index: 1,
-            ),
-          ],
+        height: 70,
+        borderRadius: 25,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            children: [
+              _buildTabButton(
+                title: 'Posts',
+                icon: Icons.grid_on_rounded,
+                index: 0,
+              ),
+              _buildTabButton(
+                title: 'Liked',
+                icon: Icons.favorite_rounded,
+                index: 1,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -456,7 +459,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                 const SizedBox(height: 16),
                 _buildStats(),
                 const SizedBox(height: 16),
-                _buildCustomTabBar(),
+                _buildTabButtons(),
                 _buildTabContent(),
               ],
             ),
@@ -580,7 +583,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
     );
   }
 
-  Widget _buildPosts() {
+   Widget _buildPosts() {
     return StreamBuilder<QuerySnapshot>(
       stream:
           FirebaseFirestore.instance
@@ -617,112 +620,299 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
           );
         }
 
-        return GridView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 0.75,
-          ),
-          itemCount: posts.length,
-          itemBuilder: (context, index) {
-            final post = posts[index].data() as Map<String, dynamic>;
-            // Handle different timestamp formats
-            DateTime timestamp;
-            final createdAtData = post['createdAt'];
-            if (createdAtData is Timestamp) {
-              timestamp = createdAtData.toDate();
-            } else if (createdAtData is String) {
-              timestamp = DateTime.parse(createdAtData);
-            } else {
-              timestamp = DateTime.now();
-            }
+        return SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: GridView.builder(
+              padding: const EdgeInsets.only(top: 16),
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 1.0,
+              ),
+              itemCount: posts.length,
+              itemBuilder: (context, index) {
+  final postDocument = posts[index];
+  final post = postDocument.data() as Map<String, dynamic>;
+  final String? imageBase64 = post['image'] as String?; // Ambil string base64
 
-            return PostCard(
-              post: post,
-              timestamp: timestamp,
-              index: index,
-              getTimeAgo: _getTimeAgo,
-            );
-          },
+  // Logika untuk createdAt (sudah Anda perbaiki, pastikan DateTime.tryParse lebih aman untuk String)
+  DateTime createdAt;
+  final dynamic createdAtData = post['createdAt'];
+  if (createdAtData is Timestamp) {
+    createdAt = createdAtData.toDate();
+  } else if (createdAtData is String) {
+    // Gunakan tryParse untuk keamanan jika string tidak valid
+    createdAt = DateTime.tryParse(createdAtData) ?? DateTime.now();
+    if (DateTime.tryParse(createdAtData) == null) {
+      print("WARN UserProfileScreen _buildPosts: Gagal parse String createdAt '${createdAtData}' untuk post ${postDocument.id}");
+    }
+  } else {
+    createdAt = DateTime.now(); 
+    if (createdAtData != null) { // Hanya print jika bukan null tapi tipe salah
+        print("WARN UserProfileScreen _buildPosts: createdAt tipe tidak dikenal (${createdAtData.runtimeType}) untuk post ${postDocument.id}, menggunakan DateTime.now()");
+    } else {
+        print("WARN UserProfileScreen _buildPosts: createdAt null untuk post ${postDocument.id}, menggunakan DateTime.now()");
+    }
+  }
+
+  return FadeInUp(
+    delay: Duration(milliseconds: index * 50),
+    duration: const Duration(milliseconds: 500),
+    child: GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DetailScreen(
+              post: postDocument,
+              postId: postDocument.id,
+              imageBase64: imageBase64 ?? '',
+              description: post['description'] as String? ?? '',
+              createdAt: createdAt, // Sesuaikan dengan nama parameter di DetailScreen
+              fullName: post['fullName'] as String? ?? 'Anonymous',
+              latitude: post['latitude'] as double? ?? 0.0,
+              longitude: post['longitude'] as double? ?? 0.0,
+              category: post['category'] as String? ?? 'Uncategorized',
+              heroTag: 'post_${postDocument.id}',
+            ),
+          ),
+        );
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: _card, // Menggunakan variabel state _card
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: (imageBase64 != null && imageBase64.isNotEmpty)
+              ? Builder(builder: (context) { // Builder untuk try-catch decode
+                  Uint8List? decodedBytes;
+                  String base64ToDecode = imageBase64;
+
+                  // Membersihkan prefix data URI jika ada
+                  if (base64ToDecode.startsWith('data:image')) {
+                    try {
+                      base64ToDecode = base64ToDecode.substring(base64ToDecode.indexOf(',') + 1);
+                    } catch (e) {
+                      print("Error memotong prefix base64: $e");
+                      // Biarkan base64ToDecode apa adanya jika pemotongan gagal, mungkin akan error di base64Decode
+                    }
+                  }
+                  
+                  try {
+                    decodedBytes = base64Decode(base64ToDecode);
+                  } catch (e) {
+                    print("!!! ERROR base64Decode di UserProfileScreen post ${postDocument.id}: $e");
+                    // decodedBytes akan tetap null, sehingga placeholder ditampilkan
+                  }
+
+                  if (decodedBytes != null) {
+                    return Image.memory(
+                      decodedBytes,
+                      fit: BoxFit.cover,
+                      width: double.infinity, // Pastikan gambar mengisi kontainer
+                      height: double.infinity,
+                      errorBuilder: (context, error, stackTrace) {
+                        print("!!! ERROR Image.memory di UserProfileScreen post ${postDocument.id}: $error");
+                        return Container(
+                          color: _card,
+                          alignment: Alignment.center,
+                          child: Icon(
+                            Icons.broken_image, // Ikon berbeda untuk error render
+                            color: _textDark.withOpacity(0.5),
+                            size: 32,
+                          ),
+                        );
+                      },
+                    );
+                  } else {
+                    // Jika decode gagal, tampilkan placeholder
+                    return Container(
+                      color: _card,
+                      alignment: Alignment.center,
+                      child: Icon(Icons.image_not_supported, color: _textDark.withOpacity(0.3), size: 32),
+                    );
+                  }
+                })
+              : Container( // Placeholder jika imageBase64 null atau kosong
+                  color: _card,
+                  alignment: Alignment.center,
+                  child: Icon(Icons.image_not_supported, color: _textDark.withOpacity(0.3), size: 32),
+                ),
+        ),
+      ),
+    ),
+  );
+},
+            ),
+          ),
         );
       },
     );
   }
 
-  Widget _buildLikedPosts() {
+ Widget _buildLikedPosts() {
+    if (widget.userId == null) return _buildEmptyState("User not identified.");
+
     return StreamBuilder<QuerySnapshot>(
       stream:
           FirebaseFirestore.instance
               .collection('posts')
               .where('likedBy', arrayContains: widget.userId)
-              .orderBy('createdAt', descending: true)
               .snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return _buildPostsSkeleton();
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmptyState("No liked posts yet");
         }
 
         final posts = snapshot.data!.docs;
-        if (posts.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.favorite_border,
-                  size: 64,
-                  color: _textLight.withOpacity(0.3),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No liked posts yet',
-                  style: GoogleFonts.poppins(
-                    color: _textLight.withOpacity(0.7),
-                    fontSize: 16,
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: GridView.builder(
+            padding: const EdgeInsets.only(top: 16),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.75,
+            ),
+            itemCount: posts.length,
+            itemBuilder: (context, index) {
+              final post = posts[index].data() as Map<String, dynamic>;
+              final imageBase64 = post['image'] as String?;
+
+              return FadeInUp(
+                delay: Duration(milliseconds: index * 50),
+                duration: const Duration(milliseconds: 500),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: _card,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          // Convert timestamp if needed
+                          DateTime createdAt;
+                          if (post['createdAt'] is Timestamp) {
+                            createdAt = (post['createdAt'] as Timestamp).toDate();
+                          } else if (post['createdAt'] is String) {
+                            createdAt = DateTime.parse(post['createdAt']);
+                          } else {
+                            createdAt = DateTime.now();
+                          }
+
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => DetailScreen(
+                                post: posts[index],
+                                postId: posts[index].id, 
+                                imageBase64: imageBase64 ?? '',
+                                description: post['description'] ?? '',
+                                createdAt: createdAt,
+                                fullName: post['fullName'] ?? 'Anonymous',
+                                latitude: post['latitude'] ?? 0.0,
+                                longitude: post['longitude'] ?? 0.0,
+                                category: post['category'] ?? 'Uncategorized',
+                                heroTag: 'liked_post_${posts[index].id}',
+                              ),
+                            ),
+                          );
+                        },
+                        child:
+                            imageBase64 != null && imageBase64.isNotEmpty
+                                ? Image.memory(
+                                  base64Decode(imageBase64),
+                                  fit: BoxFit.cover,
+                                  errorBuilder:
+                                      (context, error, stackTrace) => Container(
+                                        color: _card,
+                                        child: Icon(
+                                          Icons.image_not_supported,
+                                          color: _textDark.withOpacity(0.3),
+                                        ),
+                                      ),
+                                )
+                                : Container(
+                                  color: _card,
+                                  child: Icon(
+                                    Icons.image_not_supported,
+                                    color: _textDark.withOpacity(0.3),
+                                  ),
+                                ),
+                      ),
+                    ),
                   ),
                 ),
-              ],
-            ),
-          );
-        }
-
-        return GridView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 0.75,
+              );
+            },
           ),
-          itemCount: posts.length,
-          itemBuilder: (context, index) {
-            final post = posts[index].data() as Map<String, dynamic>;
-            // Handle different timestamp formats
-            DateTime timestamp;
-            final createdAtData = post['createdAt'];
-            if (createdAtData is Timestamp) {
-              timestamp = createdAtData.toDate();
-            } else if (createdAtData is String) {
-              timestamp = DateTime.parse(createdAtData);
-            } else {
-              timestamp = DateTime.now();
-            }
-
-            return PostCard(
-              post: post,
-              timestamp: timestamp,
-              index: index,
-              getTimeAgo: _getTimeAgo,
-            );
-          },
         );
       },
+    );
+  }
+
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            _selectedTab == 0 ? Icons.post_add_rounded : Icons.favorite_border,
+            size: 64,
+            color: _textLight.withOpacity(0.3),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: GoogleFonts.poppins(
+              color: _textLight.withOpacity(0.7),
+              fontSize: 16,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          if (_selectedTab == 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Share your moments with others',
+                style: GoogleFonts.poppins(
+                  color: _textLight.withOpacity(0.5),
+                  fontSize: 14,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 

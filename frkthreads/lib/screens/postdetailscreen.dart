@@ -12,7 +12,6 @@ import 'dart:async';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:frkthreads/widgets/post_ui_components.dart';
 import 'package:frkthreads/services/notification_service.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
@@ -20,7 +19,7 @@ import 'package:frkthreads/providers/theme_provider.dart';
 class DetailScreen extends StatefulWidget {
   final String imageBase64;
   final String description;
-  final DateTime createdAt;
+  final DateTime initialCreatedAt; // Renamed to indicate it's the initial value
   final String fullName;
   final double latitude;
   final double longitude;
@@ -28,27 +27,19 @@ class DetailScreen extends StatefulWidget {
   final String heroTag;
   final String postId;
   final DocumentSnapshot post;
-    // Color palette for consistency across app
-  static const Color _darkBackground = Color(0xFF2D3B3A);
-  static const Color _lightBackground = Color(0xFFF1E9D2);
-  static const Color _accent = Color(0xFFB88C66);
 
   const DetailScreen({
     super.key,
     required this.imageBase64,
     required this.description,
-    required this.createdAt,
+    required this.initialCreatedAt,
     required this.fullName,
     required this.latitude,
     required this.longitude,
     required this.category,
     required this.heroTag,
     required this.postId,
-<<<<<<< HEAD
-    required this.post,
-=======
-    required DocumentSnapshot<Object?> post,
->>>>>>> 55e181723e12ebd57ed4017666666bc507c19b2d
+    required this.post, required DateTime createdAt,
   });
 
   @override
@@ -60,6 +51,7 @@ class _DetailScreenState extends State<DetailScreen> {
   late Color _accent;
   late Color _textLight;
   late Color _textDark;
+  late DateTime createdAt;
 
   @override
   void didChangeDependencies() {
@@ -88,6 +80,7 @@ class _DetailScreenState extends State<DetailScreen> {
   @override
   void initState() {
     super.initState();
+    createdAt = widget.initialCreatedAt;
     _fetchPostDetails();
     _updateTimeAgo();
     _checkPostOwnership();
@@ -106,7 +99,7 @@ class _DetailScreenState extends State<DetailScreen> {
 
   void _updateTimeAgo() {
     setState(() {
-      _timeAgo = _formatTimeAgo(widget.createdAt);
+      _timeAgo = _formatTimeAgo(createdAt);
     });
   }
 
@@ -136,6 +129,18 @@ class _DetailScreenState extends State<DetailScreen> {
               isLiked = (data['likedBy'] ?? []).contains(
                 FirebaseAuth.instance.currentUser?.uid,
               );
+
+              // Handle createdAt field
+              final createdAtRaw = data['createdAt'];
+              if (createdAtRaw is Timestamp) {
+                updateCreatedAt(createdAtRaw.toDate());
+              } else if (createdAtRaw is String) {
+                updateCreatedAt(
+                  DateTime.tryParse(createdAtRaw) ?? DateTime.now(),
+                );
+              } else {
+                updateCreatedAt(DateTime.now());
+              }
             });
           }
         });
@@ -149,8 +154,10 @@ class _DetailScreenState extends State<DetailScreen> {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return;
 
-      final postRef = FirebaseFirestore.instance.collection('posts').doc(widget.postId);
-      
+      final postRef = FirebaseFirestore.instance
+          .collection('posts')
+          .doc(widget.postId);
+
       if (isLiked) {
         await postRef.update({
           'likes': FieldValue.increment(-1),
@@ -171,7 +178,7 @@ class _DetailScreenState extends State<DetailScreen> {
 
   Future<void> _addComment() async {
     if (_isCommenting) return;
-    
+
     final comment = _commentController.text.trim();
     if (comment.isEmpty) return;
 
@@ -184,41 +191,45 @@ class _DetailScreenState extends State<DetailScreen> {
         return;
       }
 
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .get();
-      
-      final userName = userDoc.data()?['fullName'] ?? user.displayName ?? 'Anonymous';
+      final userDoc =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+
+      final userName =
+          userDoc.data()?['fullName'] ?? user.displayName ?? 'Anonymous';
 
       await FirebaseFirestore.instance
           .collection('posts')
           .doc(widget.postId)
           .update({
-        'comments': FieldValue.arrayUnion([comment]),
-        'commentDetails': FieldValue.arrayUnion([
-          {
-            'userId': user.uid,
-            'userName': userName,
-            'text': comment,
-            'timestamp': Timestamp.now(),
-          }
-        ]),
-      });
+            'comments': FieldValue.arrayUnion([comment]),
+            'commentDetails': FieldValue.arrayUnion([
+              {
+                'userId': user.uid,
+                'userName': userName,
+                'text': comment,
+                'timestamp': Timestamp.now(),
+              },
+            ]),
+          });
 
       _commentController.clear();
-      
+
       // Send notification to post owner if they're not the commenter
-      if (user.uid != widget.post.get('userId')) {      NotificationService.instance.createNotification(
-        type: 'comment',
-        toUserId: widget.post.get('userId'),
-        postId: widget.postId,
-        description: '$userName commented on your post',
-      );
+      if (user.uid != widget.post.get('userId')) {
+        NotificationService.instance.createNotification(
+          type: 'comment',
+          toUserId: widget.post.get('userId'),
+          postId: widget.postId,
+          description: '$userName commented on your post',
+        );
       }
     } catch (e) {
       _showErrorSnackBar('Could not add comment');
-    } finally {      if (mounted) {
+    } finally {
+      if (mounted) {
         setState(() => _isCommenting = false);
         _showMessage('Comment added successfully');
       }
@@ -231,7 +242,7 @@ class _DetailScreenState extends State<DetailScreen> {
           .collection('posts')
           .doc(widget.postId)
           .delete();
-      
+
       Navigator.pop(context);
       _showMessage('Post deleted successfully');
     } catch (e) {
@@ -262,15 +273,10 @@ class _DetailScreenState extends State<DetailScreen> {
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          message,
-          style: GoogleFonts.poppins(color: Colors.white),
-        ),
+        content: Text(message, style: GoogleFonts.poppins(color: Colors.white)),
         backgroundColor: Colors.red[400],
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -287,9 +293,7 @@ class _DetailScreenState extends State<DetailScreen> {
         ),
         backgroundColor: _accent,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 2),
         animation: CurvedAnimation(
@@ -312,13 +316,17 @@ class _DetailScreenState extends State<DetailScreen> {
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.1) : Colors.white.withOpacity(0.8),
+        color:
+            isDark
+                ? Colors.white.withOpacity(0.1)
+                : Colors.white.withOpacity(0.8),
         borderRadius: BorderRadius.circular(borderRadius),
         boxShadow: [
           BoxShadow(
-            color: isDark 
-              ? Colors.black.withOpacity(0.2)
-              : _accent.withOpacity(0.1),
+            color:
+                isDark
+                    ? Colors.black.withOpacity(0.2)
+                    : _accent.withOpacity(0.1),
             blurRadius: 10,
             spreadRadius: 2,
           ),
@@ -333,9 +341,10 @@ class _DetailScreenState extends State<DetailScreen> {
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(borderRadius),
               border: Border.all(
-                color: isDark 
-                  ? Colors.white.withOpacity(0.15)
-                  : _accent.withOpacity(0.2),
+                color:
+                    isDark
+                        ? Colors.white.withOpacity(0.15)
+                        : _accent.withOpacity(0.2),
                 width: 1.5,
               ),
             ),
@@ -381,7 +390,9 @@ class _DetailScreenState extends State<DetailScreen> {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: (isDark ? Colors.white : Colors.black).withOpacity(0.2),
+                    color: (isDark ? Colors.white : Colors.black).withOpacity(
+                      0.2,
+                    ),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -390,11 +401,7 @@ class _DetailScreenState extends State<DetailScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.location_on,
-                      color: _accent,
-                      size: 24,
-                    ),
+                    Icon(Icons.location_on, color: _accent, size: 24),
                     const SizedBox(width: 12),
                     Text(
                       'Post Location',
@@ -439,7 +446,8 @@ class _DetailScreenState extends State<DetailScreen> {
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: () async {
-                        final url = 'https://www.google.com/maps/search/?api=1&query=${widget.latitude},${widget.longitude}';
+                        final url =
+                            'https://www.google.com/maps/search/?api=1&query=${widget.latitude},${widget.longitude}';
                         if (await canLaunch(url)) {
                           await launch(url);
                         }
@@ -451,7 +459,8 @@ class _DetailScreenState extends State<DetailScreen> {
                           children: [
                             Icon(
                               Icons.map,
-                              color: isDark ? _accent : _accent.withOpacity(0.8),
+                              color:
+                                  isDark ? _accent : _accent.withOpacity(0.8),
                             ),
                             const SizedBox(width: 12),
                             Text(
@@ -465,7 +474,8 @@ class _DetailScreenState extends State<DetailScreen> {
                             const Spacer(),
                             Icon(
                               Icons.open_in_new,
-                              color: (isDark ? _textLight : _textDark).withOpacity(0.5),
+                              color: (isDark ? _textLight : _textDark)
+                                  .withOpacity(0.5),
                               size: 20,
                             ),
                           ],
@@ -483,9 +493,7 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
-<<<<<<< HEAD
-=======
-  Widget _buildCommentsSheet() {
+  Widget _buildDraggableCommentsSheet() {
     return DraggableScrollableSheet(
       initialChildSize: 0.9,
       minChildSize: 0.5,
@@ -823,20 +831,27 @@ class _DetailScreenState extends State<DetailScreen> {
     );
   }
 
->>>>>>> 55e181723e12ebd57ed4017666666bc507c19b2d
+  void updateCreatedAt(DateTime newCreatedAt) {
+    setState(() {
+      createdAt = newCreatedAt;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;    return Scaffold(
+    final isDark = themeProvider.isDarkMode;
+    return Scaffold(
       backgroundColor: _background,
       appBar: AppBar(
-        systemOverlayStyle: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        systemOverlayStyle:
+            isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
         elevation: 0,
         backgroundColor: isDark ? _background : _accent,
         leading: IconButton(
           icon: Icon(
             Icons.arrow_back,
-            color: isDark ? _textLight : Colors.white
+            color: isDark ? _textLight : Colors.white,
           ),
           onPressed: () => Navigator.pop(context),
         ),
@@ -892,79 +907,77 @@ class _DetailScreenState extends State<DetailScreen> {
                 height: widget.description.length > 100 ? 200 : 150,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-<<<<<<< HEAD
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 4,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isDark ? _accent.withOpacity(0.2) : _accent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            widget.category,
+                            style: GoogleFonts.poppins(
+                              color: isDark ? _accent : Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
-                        decoration: BoxDecoration(
-                          color: isDark ? _accent.withOpacity(0.2) : _accent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          widget.category,
+                        Text(
+                          widget.description,
                           style: GoogleFonts.poppins(
-                            color: isDark ? _accent : Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
+                            fontSize: 16,
+                            height: 1.5,
+                            color: isDark ? _textLight : _textDark,
                           ),
+                          maxLines: widget.description.length > 100 ? null : 3,
+                          overflow:
+                              widget.description.length > 100
+                                  ? null
+                                  : TextOverflow.ellipsis,
                         ),
-=======
-                      AnimatedLikeButton(
-                        isLiked: isLiked,
-                        isLoading: _isLiking,
-                        likes: likes,
-                        onTap: _toggleLike,
-                        showLikesList: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (context) => _buildLikesSheet(),
-                          );
-                        },
->>>>>>> 55e181723e12ebd57ed4017666666bc507c19b2d
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        widget.description,
-                        style: GoogleFonts.poppins(
-                          fontSize: 16,
-                          height: 1.5,
-                          color: isDark ? _textLight : _textDark,
+                        const Spacer(),
+                        Row(
+                          children: [
+                            AnimatedLikeButton(
+                              isLiked: isLiked,
+                              isLoading: _isLiking,
+                              likes: likes,
+                              onTap: _toggleLike,
+                              showLikesList: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (context) => _buildLikesSheet(),
+                                );
+                              },
+                            ),
+                            const SizedBox(width: 16),
+                            CommentButton(
+                              commentCount: comments.length,
+                              onTap: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder:
+                                      (context) =>
+                                          _buildDraggableCommentsSheet(),
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                        maxLines: widget.description.length > 100 ? null : 3,
-                        overflow: widget.description.length > 100 ? null : TextOverflow.ellipsis,
-                      ),
-                      const Spacer(),
-                      Row(
-                        children: [
-                          AnimatedLikeButton(
-                            isLiked: isLiked,
-                            isLoading: _isLiking,
-                            likes: likes,
-                            onTap: _toggleLike,
-                          ),
-                          const SizedBox(width: 16),
-                          CommentButton(
-                            commentCount: comments.length,
-                            onTap: () {
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder: (context) => _buildCommentsSheet(),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(width: 16),
-                    ],
+                        const SizedBox(width: 16),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1008,7 +1021,8 @@ class _DetailScreenState extends State<DetailScreen> {
                             ),
                             Icon(
                               Icons.chevron_right,
-                              color: (isDark ? _textLight : _textDark).withOpacity(0.5),
+                              color: (isDark ? _textLight : _textDark)
+                                  .withOpacity(0.5),
                             ),
                           ],
                         ),
@@ -1030,329 +1044,88 @@ class _DetailScreenState extends State<DetailScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: _buildGlassContainer(
-          height: 200,
-          child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.delete_outline,
-                  color: Colors.red[400],
-                  size: 40,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Delete Post?',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? _textLight : _textDark,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'This action cannot be undone',
-                  style: GoogleFonts.poppins(
-                    fontSize: 14,
-                    color: (isDark ? _textLight : _textDark).withOpacity(0.7),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      builder:
+          (context) => Dialog(
+            backgroundColor: Colors.transparent,
+            child: _buildGlassContainer(
+              height: 200,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        'Cancel',
-                        style: GoogleFonts.poppins(
-                          color: (isDark ? _textLight : _textDark).withOpacity(0.7),
-                          fontWeight: FontWeight.w500,
-                        ),
+                    Icon(
+                      Icons.delete_outline,
+                      color: Colors.red[400],
+                      size: 40,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Delete Post?',
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? _textLight : _textDark,
                       ),
                     ),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _deletePost();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[400],
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shadowColor: Colors.transparent,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                    const SizedBox(height: 8),
+                    Text(
+                      'This action cannot be undone',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: (isDark ? _textLight : _textDark).withOpacity(
+                          0.7,
                         ),
                       ),
-                      child: Text(
-                        'Delete',
-                        style: GoogleFonts.poppins(
-                          fontWeight: FontWeight.w500,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text(
+                            'Cancel',
+                            style: GoogleFonts.poppins(
+                              color: (isDark ? _textLight : _textDark)
+                                  .withOpacity(0.7),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
-                      ),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context);
+                            _deletePost();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red[400],
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shadowColor: Colors.transparent,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 12,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: Text(
+                            'Delete',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCommentsSheet() {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDark = themeProvider.isDarkMode;
-    
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-      decoration: BoxDecoration(
-        color: isDark ? _background : Colors.white,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(20),
-          bottom: Radius.circular(20),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark 
-              ? Colors.black.withOpacity(0.2)
-              : _accent.withOpacity(0.1),
-            blurRadius: 10,
-            spreadRadius: 2,
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 8),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: (isDark ? _textLight : _textDark).withOpacity(0.2),
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Text(
-                  'Comments (${commentDetails.length})',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? _textLight : _textDark,
-                  ),
-                ),
-                const Spacer(),
-                if (commentDetails.isNotEmpty)
-                  TextButton.icon(
-                    icon: Icon(
-                      Icons.sort,
-                      color: _accent,
-                      size: 20,
-                    ),
-                    label: Text(
-                      'Latest',
-                      style: GoogleFonts.poppins(
-                        color: _accent,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    onPressed: () {
-                      // Implement sorting if needed
-                    },
-                  ),
-              ],
-            ),
-          ),
-          Flexible(
-            child: commentDetails.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.chat_bubble_outline,
-                            size: 64,
-                            color: (isDark ? _textLight : _textDark).withOpacity(0.3),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No comments yet',
-                            style: GoogleFonts.poppins(
-                              fontSize: 16,
-                              color: (isDark ? _textLight : _textDark).withOpacity(0.7),
-                            ),
-                          ),
-                          Text(
-                            'Be the first to comment',
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              color: (isDark ? _textLight : _textDark).withOpacity(0.5),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: EdgeInsets.zero,
-                    shrinkWrap: true,
-                    itemCount: commentDetails.length,
-                    itemBuilder: (context, index) {
-                      final comment = commentDetails[index];
-                      final timeAgo = _formatTimeAgo(
-                        (comment['timestamp'] as Timestamp).toDate(),
-                      );
-
-                      return Column(
-                        children: [
-                          ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: isDark 
-                                ? _background.withOpacity(0.7)
-                                : _accent.withOpacity(0.1),
-                              child: Icon(
-                                Icons.person,
-                                color: isDark 
-                                  ? _textLight.withOpacity(0.7)
-                                  : _accent,
-                                size: 20,
-                              ),
-                            ),
-                            title: Row(
-                              children: [
-                                Text(
-                                  comment['userName'] ?? 'Anonymous',
-                                  style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark ? _textLight : _textDark,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  timeAgo,
-                                  style: GoogleFonts.poppins(
-                                    color: (isDark ? _textLight : _textDark).withOpacity(0.5),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            subtitle: Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                comment['text'],
-                                style: GoogleFonts.poppins(
-                                  color: isDark 
-                                    ? _textLight.withOpacity(0.9)
-                                    : _textDark.withOpacity(0.9),
-                                  fontSize: 14,
-                                  height: 1.3,
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (index < commentDetails.length - 1)
-                            Divider(
-                              indent: 72,
-                              color: (isDark ? _textLight : _textDark).withOpacity(0.1),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-          ),
-          Padding(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-              top: 8,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _commentController,
-                    maxLines: null,
-                    textCapitalization: TextCapitalization.sentences,
-                    style: GoogleFonts.poppins(
-                      color: isDark ? _textLight : _textDark,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: 'Add a comment...',
-                      hintStyle: GoogleFonts.poppins(
-                        color: (isDark ? _textLight : _textDark).withOpacity(0.5),
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide(
-                          color: isDark 
-                            ? Colors.white.withOpacity(0.1)
-                            : _accent.withOpacity(0.2),
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide(
-                          color: isDark 
-                            ? Colors.white.withOpacity(0.1)
-                            : _accent.withOpacity(0.2),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide(color: _accent),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      fillColor: isDark 
-                        ? Colors.white.withOpacity(0.1)
-                        : _accent.withOpacity(0.05),
-                      filled: true,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Material(
-                  color: _accent,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: IconButton(
-                    icon: _isCommenting
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : const Icon(Icons.send, color: Colors.white),
-                    onPressed: _isCommenting ? null : _addComment,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

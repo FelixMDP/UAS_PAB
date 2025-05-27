@@ -15,54 +15,54 @@ class NotificationScreen extends StatelessWidget {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDark = themeProvider.isDarkMode;
-    final backgroundColor =
-        isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2);
-    final textColor = isDark ? Colors.white : const Color(0xFF293133);
+
+    if (currentUserId == null) {
+      return Scaffold(
+        backgroundColor:
+            isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2),
+        body: Center(
+          child: Text(
+            'Please sign in to view notifications',
+            style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor:
+          isDark ? const Color(0xFF293133) : const Color(0xFFF1E9D2),
       appBar: AppBar(
-        backgroundColor: backgroundColor,
-        title: Text('Notifications', style: TextStyle(color: textColor)),
+        title: const Text('Notifications'),
+        backgroundColor: isDark ? Colors.grey[900] : const Color(0xFFB88C66),
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.clear_all, color: textColor),
+            icon: const Icon(Icons.clear_all),
             onPressed: () {
               showDialog(
                 context: context,
                 builder:
                     (context) => AlertDialog(
-                      backgroundColor: backgroundColor,
-                      title: Text(
-                        'Clear Notifications',
-                        style: TextStyle(color: textColor),
-                      ),
-                      content: Text(
+                      title: const Text('Clear Notifications'),
+                      content: const Text(
                         'Are you sure you want to clear all notifications?',
-                        style: TextStyle(color: textColor),
                       ),
                       actions: [
                         TextButton(
-                          child: Text(
-                            'Cancel',
-                            style: TextStyle(color: textColor),
-                          ),
-                          onPressed: () => Navigator.of(context).pop(),
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Cancel'),
                         ),
                         TextButton(
-                          child: Text(
-                            'Clear',
-                            style: TextStyle(
-                              color: Colors.red,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
                           onPressed: () {
                             NotificationService.instance
                                 .clearAllNotifications();
-                            Navigator.of(context).pop();
+                            Navigator.pop(context);
                           },
+                          child: const Text(
+                            'Clear',
+                            style: TextStyle(color: Colors.red),
+                          ),
                         ),
                       ],
                     ),
@@ -72,159 +72,90 @@ class NotificationScreen extends StatelessWidget {
         ],
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream:
-            FirebaseFirestore.instance
-                .collection('notifications')
-                .where('toUserId', isEqualTo: currentUserId)
-                .orderBy('createdAt', descending: true)
-                .snapshots(),
+        stream: NotificationService.instance.getNotificationStream(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator(color: textColor));
-          }
-
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (snapshot.hasError) {
             return Center(
               child: Text(
-                'No notifications yet',
-                style: TextStyle(color: textColor.withOpacity(0.7)),
+                'Error: ${snapshot.error}',
+                style: TextStyle(
+                  color: isDark ? Colors.white70 : Colors.black87,
+                ),
               ),
             );
           }
 
-          // Group notifications by postId for likes
-          Map<String, List<DocumentSnapshot>> groupedLikes = {};
-          List<DocumentSnapshot> otherNotifications = [];
-
-          for (var doc in snapshot.data!.docs) {
-            final data = doc.data() as Map<String, dynamic>;
-            if (data['type'] == 'like') {
-              String postId = data['postId'];
-              if (!groupedLikes.containsKey(postId)) {
-                groupedLikes[postId] = [];
-              }
-              groupedLikes[postId]!.add(doc);
-            } else {
-              otherNotifications.add(doc);
-            }
+          if (!snapshot.hasData) {
+            return Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(
+                  isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+            );
           }
 
-          // Combine grouped likes with other notifications
-          List<Widget> notificationWidgets = [];
+          final notifications = snapshot.data!.docs;
 
-          // Add grouped likes
-          groupedLikes.forEach((postId, likes) {
-            if (likes.isNotEmpty) {
-              final latestLike = likes.first.data() as Map<String, dynamic>;
-              final postDoc = FirebaseFirestore.instance
-                  .collection('posts')
-                  .doc(postId);
+          if (notifications.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.notifications_none,
+                    size: 64,
+                    color: isDark ? Colors.white38 : Colors.grey,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No notifications yet',
+                    style: TextStyle(
+                      color: isDark ? Colors.white38 : Colors.grey,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
 
-              notificationWidgets.add(
-                FutureBuilder<DocumentSnapshot>(
-                  future: postDoc.get(),
-                  builder: (context, postSnapshot) {
-                    if (!postSnapshot.hasData) {
-                      return const SizedBox.shrink();
-                    }
+          return ListView.builder(
+            itemCount: notifications.length,
+            itemBuilder: (context, index) {
+              final notification = notifications[index];
+              final data = notification.data() as Map<String, dynamic>;
+              final createdAt =
+                  (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+              final type = data['type'] as String? ?? 'general';
+              final fromUserName = data['fromUserName'] as String? ?? 'Someone';
+              String description = data['description'] as String? ?? '';
 
-                    final createdAtData = latestLike['createdAt'];
-                    final createdAt =
-                        (createdAtData is Timestamp)
-                            ? createdAtData.toDate()
-                            : (createdAtData is String)
-                            ? DateTime.parse(createdAtData)
-                            : DateTime.now();
+              // Mark notification as read when viewed
+              if (!(data['isRead'] as bool? ?? false)) {
+                NotificationService.instance.markNotificationAsRead(
+                  notification.id,
+                );
+              }
 
-                    return Dismissible(
-                      key: Key('likes_$postId'),
-                      onDismissed: (_) async {
-                        for (var like in likes) {
-                          await NotificationService.instance.deleteNotification(
-                            like.id,
-                          );
-                        }
-                      },
-                      child: NotificationCard(
-                        type: 'grouped_like',
-                        fromUserName:
-                            likes.length > 1
-                                ? '${latestLike['fromUserName']} and ${likes.length - 1} others'
-                                : latestLike['fromUserName'],
-                        description: 'liked your post',
-                        createdAt: createdAt,
-                        isDark: isDark,
-                        onTap: () async {
-                          if (postSnapshot.hasData && context.mounted) {
-                            final postData =
-                                postSnapshot.data!.data()
-                                    as Map<String, dynamic>?;
-                            if (postData != null) {
-                              final postCreatedAt = postData['createdAt'];
-                              final DateTime parsedCreatedAt;
-                              if (postCreatedAt is Timestamp) {
-                                parsedCreatedAt = postCreatedAt.toDate();
-                              } else if (postCreatedAt is String) {
-                                parsedCreatedAt = DateTime.parse(postCreatedAt);
-                              } else {
-                                parsedCreatedAt = DateTime.now();
-                              }
-
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder:
-                                      (context) => DetailScreen(
-                                        imageBase64: postData['image'] ?? '',
-                                        description:
-                                            postData['description'] ?? '',
-                                        createdAt: parsedCreatedAt,
-                                        fullName:
-                                            postData['fullName'] ?? 'Anonymous',
-                                        latitude:
-                                            (postData['latitude'] as num?)
-                                                ?.toDouble() ??
-                                            0.0,
-                                        longitude:
-                                            (postData['longitude'] as num?)
-                                                ?.toDouble() ??
-                                            0.0,
-                                        category:
-                                            postData['category'] ?? 'General',
-                                        heroTag: 'notification_$postId',
-                                        postId: postId,
-                                        post: postSnapshot.data!,
-                                      ),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                      ),
-                    );
-                  },
+              return Dismissible(
+                key: Key(notification.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20.0),
+                  color: Colors.red,
+                  child: const Icon(Icons.delete, color: Colors.white),
                 ),
-              );
-            }
-          });
-
-          // Add other notifications
-          for (var doc in otherNotifications) {
-            final data = doc.data() as Map<String, dynamic>;
-            notificationWidgets.add(
-              Dismissible(
-                key: Key(doc.id),
-                onDismissed: (_) {
-                  NotificationService.instance.deleteNotification(doc.id);
+                onDismissed: (direction) {
+                  NotificationService.instance.deleteNotification(
+                    notification.id,
+                  );
                 },
                 child: NotificationCard(
-                  type: data['type'],
-                  fromUserName: data['fromUserName'],
-                  description: data['description'],
-                  createdAt:
-                      (data['createdAt'] is Timestamp)
-                          ? (data['createdAt'] as Timestamp).toDate()
-                          : DateTime.now(),
+                  type: type,
+                  fromUserName: fromUserName,
+                  description: description,
+                  createdAt: createdAt,
                   isDark: isDark,
                   onTap: () async {
                     if (data['postId'] != null) {
@@ -236,24 +167,17 @@ class NotificationScreen extends StatelessWidget {
 
                       if (postDoc.exists && context.mounted) {
                         final postData = postDoc.data()!;
-                        final postCreatedAt = postData['createdAt'];
-                        final DateTime parsedCreatedAt;
-                        if (postCreatedAt is Timestamp) {
-                          parsedCreatedAt = postCreatedAt.toDate();
-                        } else if (postCreatedAt is String) {
-                          parsedCreatedAt = DateTime.parse(postCreatedAt);
-                        } else {
-                          parsedCreatedAt = DateTime.now();
-                        }
-
                         Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder:
                                 (context) => DetailScreen(
+                                  postId: data['postId'],
                                   imageBase64: postData['image'] ?? '',
                                   description: postData['description'] ?? '',
-                                  createdAt: parsedCreatedAt,
+                                  createdAt:
+                                      (postData['createdAt'] as Timestamp)
+                                          .toDate(),
                                   fullName: postData['fullName'] ?? 'Anonymous',
                                   latitude:
                                       (postData['latitude'] as num?)
@@ -264,9 +188,7 @@ class NotificationScreen extends StatelessWidget {
                                           ?.toDouble() ??
                                       0.0,
                                   category: postData['category'] ?? 'General',
-                                  heroTag: 'notification_${data['postId']}',
-                                  postId: data['postId'],
-                                  post: postDoc,
+                                  heroTag: 'notification_${data['postId']}', post: postDoc, initialCreatedAt: (postData['createdAt'] as Timestamp).toDate(),
                                 ),
                           ),
                         );
@@ -274,11 +196,9 @@ class NotificationScreen extends StatelessWidget {
                     }
                   },
                 ),
-              ),
-            );
-          }
-
-          return ListView(children: notificationWidgets);
+              );
+            },
+          );
         },
       ),
     );
@@ -305,75 +225,48 @@ class NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = isDark ? const Color(0xFF3D4A4D) : Colors.white;
-    final textColor = isDark ? Colors.white : const Color(0xFF293133);
-
-    IconData iconData;
+    IconData icon;
     Color iconColor;
-
     switch (type) {
       case 'like':
-      case 'grouped_like':
-        iconData = Icons.favorite;
+        icon = Icons.favorite;
         iconColor = Colors.red;
         break;
       case 'comment':
-        iconData = Icons.chat_bubble;
+        icon = Icons.comment;
         iconColor = Colors.blue;
         break;
       default:
-        iconData = Icons.notifications;
-        iconColor = Colors.grey;
+        icon = Icons.notifications;
+        iconColor = isDark ? Colors.white70 : Colors.grey;
     }
 
     return Card(
-      color: backgroundColor,
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(iconData, color: iconColor),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    RichText(
-                      text: TextSpan(
-                        style: TextStyle(fontSize: 14, color: textColor),
-                        children: [
-                          TextSpan(
-                            text: fromUserName,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          TextSpan(text: ' $description'),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _formatTimeAgo(createdAt),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: textColor.withOpacity(0.6),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+      color: isDark ? Colors.grey[850] : Colors.white,
+      elevation: 2,
+      shadowColor: isDark ? Colors.black26 : Colors.black12,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: iconColor.withOpacity(0.1),
+          child: Icon(icon, color: iconColor),
+        ),
+        title: Text(
+          '$fromUserName $description',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+            fontSize: 15,
           ),
         ),
+        subtitle: Text(
+          _formatTimeAgo(createdAt),
+          style: TextStyle(
+            color: isDark ? Colors.white60 : Colors.grey[600],
+            fontSize: 13,
+          ),
+        ),
+        onTap: onTap,
       ),
     );
   }
@@ -381,17 +274,9 @@ class NotificationCard extends StatelessWidget {
   String _formatTimeAgo(DateTime dateTime) {
     final now = DateTime.now();
     final difference = now.difference(dateTime);
-
-    if (difference.inSeconds < 60) {
-      return '${difference.inSeconds} seconds ago';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes} minutes ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours} hours ago';
-    } else if (difference.inDays < 7) {
-      return '${difference.inDays} days ago';
-    } else {
-      return DateFormat.yMMMd().format(dateTime);
-    }
+    if (difference.inMinutes < 1) return 'Just now';
+    if (difference.inHours < 1) return '${difference.inMinutes}m ago';
+    if (difference.inDays < 1) return '${difference.inHours}h ago';
+    return DateFormat('dd/MM/yyyy').format(dateTime);
   }
 }

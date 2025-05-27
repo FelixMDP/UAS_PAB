@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:frkthreads/providers/theme_provider.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:frkthreads/services/local_notification_service.dart';
+import 'package:frkthreads/screens/auth_wrapper.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -35,7 +36,7 @@ class MainApp extends StatelessWidget {
           theme: themeProvider.lightTheme,
           darkTheme: themeProvider.darkTheme,
           themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-          home: const SplashScreen(),
+          home: const AuthWrapper(),
           debugShowCheckedModeBanner: false,
           // Add page transition animations
           onGenerateRoute: (settings) {

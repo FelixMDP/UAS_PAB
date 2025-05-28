@@ -418,7 +418,7 @@ class PostListView extends StatelessWidget {
     final diff = now.difference(dateTime);
 
     if (diff.inSeconds < 60) {
-      return '${diff.inSeconds} detik yang lalu';
+      return '1 menit yang lalu';
     } else if (diff.inMinutes < 60) {
       return '${diff.inMinutes} menit yang lalu';
     } else if (diff.inHours < 24) {

@@ -201,12 +201,12 @@ class _HomeScreenState extends State<HomeScreen>
                     // );
                   },
                   child: Padding(
-                    padding: const EdgeInsets.only(
-                      right: 12.0,
-                      left: 4.0,
-                    ), // Jarak avatar
+                    padding: const EdgeInsets.only(right: 12.0, left: 4.0),
                     child: CircleAvatar(
-                      radius: 18, // Ukuran disesuaikan
+                      key: ValueKey(
+                        profileImageBase64,
+                      ), // Force refresh when image changes
+                      radius: 18,
                       backgroundColor:
                           isDark
                               ? Colors.grey[700]
@@ -214,14 +214,49 @@ class _HomeScreenState extends State<HomeScreen>
                       child:
                           (profileImageBase64 != null &&
                                   profileImageBase64.isNotEmpty)
-                              ? ClipOval(
-                                child: Image.memory(
-                                  base64Decode(profileImageBase64),
-                                  width: 36, // 2x radius
-                                  height: 36,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    // Fallback jika error decode gambar
+                              ? Builder(
+                                builder: (context) {
+                                  try {
+                                    String effectiveBase64 =
+                                        profileImageBase64!;
+                                    if (profileImageBase64!.contains(',')) {
+                                      effectiveBase64 =
+                                          profileImageBase64!.split(',')[1];
+                                    }
+                                    final imageBytes = base64Decode(
+                                      effectiveBase64,
+                                    );
+                                    return ClipOval(
+                                      child: Image.memory(
+                                        imageBytes,
+                                        width: 36,
+                                        height: 36,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (
+                                          context,
+                                          error,
+                                          stackTrace,
+                                        ) {
+                                          debugPrint(
+                                            'Error loading profile image: $error',
+                                          );
+                                          return Text(
+                                            initialLetter,
+                                            style: TextStyle(
+                                              color:
+                                                  isDark
+                                                      ? Colors.white70
+                                                      : Colors.black54,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    debugPrint(
+                                      'Error decoding profile image: $e',
+                                    );
                                     return Text(
                                       initialLetter,
                                       style: TextStyle(
@@ -232,11 +267,10 @@ class _HomeScreenState extends State<HomeScreen>
                                         fontWeight: FontWeight.bold,
                                       ),
                                     );
-                                  },
-                                ),
+                                  }
+                                },
                               )
                               : Text(
-                                // Tampilkan inisial jika tidak ada gambar atau saat loading
                                 initialLetter,
                                 style: TextStyle(
                                   color:
@@ -415,10 +449,7 @@ class PostListView extends StatelessWidget {
         await file.writeAsBytes(bytes);
 
         // Share image file with text
-        await Share.shareXFiles(
-          [XFile(file.path)],
-          text: shareText,
-        );
+        await Share.shareXFiles([XFile(file.path)], text: shareText);
       } else {
         // Share text only
         await Share.share(shareText);
@@ -487,10 +518,11 @@ class PostListView extends StatelessWidget {
     final isDark = themeProvider.isDarkMode;
 
     return StreamBuilder(
-      stream: FirebaseFirestore.instance
-          .collection('posts')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection('posts')
+              .orderBy('createdAt', descending: true)
+              .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
           return Center(
@@ -513,7 +545,7 @@ class PostListView extends StatelessWidget {
               final description = data['description'] as String? ?? '';
               final createdAtStr = data['createdAt'];
               final fullName = data['fullName'] as String? ?? 'Anonim';
-              
+
               DateTime createdAt;
               if (createdAtStr is String) {
                 createdAt = DateTime.tryParse(createdAtStr) ?? DateTime.now();
@@ -523,7 +555,8 @@ class PostListView extends StatelessWidget {
                 createdAt = DateTime.now();
               }
 
-              final List<dynamic> commentDetailsList = data['commentDetails'] as List<dynamic>? ?? [];
+              final List<dynamic> commentDetailsList =
+                  data['commentDetails'] as List<dynamic>? ?? [];
               final int currentCommentCount = commentDetailsList.length;
 
               return AnimationConfiguration.staggeredList(
@@ -533,27 +566,29 @@ class PostListView extends StatelessWidget {
                   verticalOffset: 50.0,
                   child: FadeInAnimation(
                     child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20),
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: isDark
-                              ? [
-                                  Colors.grey[850]!,
-                                  Colors.grey[900]!,
-                                ]
-                              : [
-                                  const Color(0xFFFFF3E0),
-                                  const Color(0xFFFFE0B2),
-                                ],
+                          colors:
+                              isDark
+                                  ? [Colors.grey[850]!, Colors.grey[900]!]
+                                  : [
+                                    const Color(0xFFFFF3E0),
+                                    const Color(0xFFFFE0B2),
+                                  ],
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: isDark
-                                ? Colors.black.withOpacity(0.3)
-                                : Colors.grey.withOpacity(0.3),
+                            color:
+                                isDark
+                                    ? Colors.black.withOpacity(0.3)
+                                    : Colors.grey.withOpacity(0.3),
                             offset: const Offset(0, 4),
                             blurRadius: 12,
                           ),
@@ -574,18 +609,24 @@ class PostListView extends StatelessWidget {
                                       Navigator.push(
                                         context,
                                         MaterialPageRoute(
-                                          builder: (context) => DetailScreen(
-                                            post: posts[index],
-                                            postId: posts[index].id,
-                                            imageBase64: imageBase64,
-                                            description: description,
-                                            createdAt: createdAt,
-                                            fullName: fullName,
-                                            latitude: data['latitude'] ?? 0.0,
-                                            longitude: data['longitude'] ?? 0.0,
-                                            category: data['category'] ?? 'Uncategorized',
-                                            heroTag: 'post_${posts[index].id}',
-                                          ),
+                                          builder:
+                                              (context) => DetailScreen(
+                                                post: posts[index],
+                                                postId: posts[index].id,
+                                                imageBase64: imageBase64,
+                                                description: description,
+                                                createdAt: createdAt,
+                                                fullName: fullName,
+                                                latitude:
+                                                    data['latitude'] ?? 0.0,
+                                                longitude:
+                                                    data['longitude'] ?? 0.0,
+                                                category:
+                                                    data['category'] ??
+                                                    'Uncategorized',
+                                                heroTag:
+                                                    'post_${posts[index].id}',
+                                              ),
                                         ),
                                       );
                                     },
@@ -608,7 +649,8 @@ class PostListView extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Row(
                                       children: [
@@ -617,28 +659,118 @@ class PostListView extends StatelessWidget {
                                             shape: BoxShape.circle,
                                             boxShadow: [
                                               BoxShadow(
-                                                color: isDark
-                                                    ? Colors.black.withOpacity(0.3)
-                                                    : Colors.grey.withOpacity(0.3),
+                                                color:
+                                                    isDark
+                                                        ? Colors.black
+                                                            .withOpacity(0.3)
+                                                        : Colors.grey
+                                                            .withOpacity(0.3),
                                                 blurRadius: 8,
                                               ),
                                             ],
                                           ),
-                                          child: CircleAvatar(
-                                            backgroundColor: isDark
-                                                ? Colors.grey[800]
-                                                : Colors.white,
-                                            radius: 24,
-                                            child: Text(
-                                              fullName[0].toUpperCase(),
-                                              style: TextStyle(
-                                                color: isDark
-                                                    ? Colors.white
-                                                    : Colors.black87,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 18,
-                                              ),
-                                            ),
+                                          child: StreamBuilder<
+                                            DocumentSnapshot
+                                          >(
+                                            stream:
+                                                FirebaseFirestore.instance
+                                                    .collection('users')
+                                                    .doc(data['userId'])
+                                                    .snapshots(),
+                                            builder: (context, snapshot) {
+                                              if (snapshot.hasData &&
+                                                  snapshot.data!.exists) {
+                                                final userData =
+                                                    snapshot.data!.data()
+                                                        as Map<
+                                                          String,
+                                                          dynamic
+                                                        >?;
+                                                final profileImage =
+                                                    userData?['profileImage']
+                                                        as String?;
+
+                                                if (profileImage != null &&
+                                                    profileImage.isNotEmpty) {
+                                                  try {
+                                                    String effectiveBase64 =
+                                                        profileImage;
+                                                    if (profileImage.contains(
+                                                      ',',
+                                                    )) {
+                                                      effectiveBase64 =
+                                                          profileImage.split(
+                                                            ',',
+                                                          )[1];
+                                                    }
+                                                    final imageBytes =
+                                                        base64Decode(
+                                                          effectiveBase64,
+                                                        );
+
+                                                    return CircleAvatar(
+                                                      radius: 24,
+                                                      backgroundColor:
+                                                          isDark
+                                                              ? Colors.grey[800]
+                                                              : Colors.white,
+                                                      child: ClipOval(
+                                                        child: Image.memory(
+                                                          imageBytes,
+                                                          width: 48,
+                                                          height: 48,
+                                                          fit: BoxFit.cover,
+                                                          errorBuilder:
+                                                              (
+                                                                context,
+                                                                error,
+                                                                stack,
+                                                              ) => Text(
+                                                                fullName[0]
+                                                                    .toUpperCase(),
+                                                                style: TextStyle(
+                                                                  color:
+                                                                      isDark
+                                                                          ? Colors
+                                                                              .white
+                                                                          : Colors
+                                                                              .black87,
+                                                                  fontWeight:
+                                                                      FontWeight
+                                                                          .bold,
+                                                                  fontSize: 18,
+                                                                ),
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    );
+                                                  } catch (e) {
+                                                    debugPrint(
+                                                      'Error decoding profile image: $e',
+                                                    );
+                                                  }
+                                                }
+                                              }
+
+                                              return CircleAvatar(
+                                                backgroundColor:
+                                                    isDark
+                                                        ? Colors.grey[800]
+                                                        : Colors.white,
+                                                radius: 24,
+                                                child: Text(
+                                                  fullName[0].toUpperCase(),
+                                                  style: TextStyle(
+                                                    color:
+                                                        isDark
+                                                            ? Colors.white
+                                                            : Colors.black87,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 18,
+                                                  ),
+                                                ),
+                                              );
+                                            },
                                           ),
                                         ),
                                         const SizedBox(width: 12),
@@ -651,18 +783,20 @@ class PostListView extends StatelessWidget {
                                               style: TextStyle(
                                                 fontSize: 16,
                                                 fontWeight: FontWeight.w600,
-                                                color: isDark
-                                                    ? Colors.white
-                                                    : Colors.black87,
+                                                color:
+                                                    isDark
+                                                        ? Colors.white
+                                                        : Colors.black87,
                                               ),
                                             ),
                                             Text(
                                               formatTime(createdAt),
                                               style: TextStyle(
                                                 fontSize: 12,
-                                                color: isDark
-                                                    ? Colors.grey[400]
-                                                    : Colors.grey[600],
+                                                color:
+                                                    isDark
+                                                        ? Colors.grey[400]
+                                                        : Colors.grey[600],
                                               ),
                                             ),
                                           ],
@@ -713,9 +847,10 @@ class PostListView extends StatelessWidget {
                                   description,
                                   style: TextStyle(
                                     fontSize: 16,
-                                    color: isDark
-                                        ? Colors.grey[300]
-                                        : Colors.black87,
+                                    color:
+                                        isDark
+                                            ? Colors.grey[300]
+                                            : Colors.black87,
                                     height: 1.4,
                                   ),
                                   maxLines: 3,
@@ -723,41 +858,68 @@ class PostListView extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 16),
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
                                   children: [
                                     _buildInteractionButton(
-                                      icon: (data['likedBy'] as List<dynamic>? ?? [])
-                                              .contains(FirebaseAuth.instance.currentUser?.uid)
-                                          ? Icons.favorite
-                                          : Icons.favorite_border,
-                                      color: (data['likedBy'] as List<dynamic>? ?? [])
-                                              .contains(FirebaseAuth.instance.currentUser?.uid)
-                                          ? Colors.red
-                                          : (isDark ? Colors.grey[400] : Colors.grey[600]),
+                                      icon:
+                                          (data['likedBy'] as List<dynamic>? ??
+                                                      [])
+                                                  .contains(
+                                                    FirebaseAuth
+                                                        .instance
+                                                        .currentUser
+                                                        ?.uid,
+                                                  )
+                                              ? Icons.favorite
+                                              : Icons.favorite_border,
+                                      color:
+                                          (data['likedBy'] as List<dynamic>? ??
+                                                      [])
+                                                  .contains(
+                                                    FirebaseAuth
+                                                        .instance
+                                                        .currentUser
+                                                        ?.uid,
+                                                  )
+                                              ? Colors.red
+                                              : (isDark
+                                                  ? Colors.grey[400]
+                                                  : Colors.grey[600]),
                                       count: data['likes'] ?? 0,
                                       onTap: () => _toggleLike(posts[index].id),
                                       isDark: isDark,
                                     ),
                                     _buildInteractionButton(
                                       icon: Icons.comment_outlined,
-                                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                      color:
+                                          isDark
+                                              ? Colors.grey[400]
+                                              : Colors.grey[600],
                                       count: currentCommentCount,
                                       onTap: () {
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
-                                            builder: (context) => DetailScreen(
-                                              post: posts[index],
-                                              postId: posts[index].id,
-                                              imageBase64: imageBase64 ?? '',
-                                              description: description,
-                                              createdAt: createdAt,
-                                              fullName: fullName,
-                                              latitude: data['latitude'] ?? 0.0,
-                                              longitude: data['longitude'] ?? 0.0,
-                                              category: data['category'] ?? 'Uncategorized',
-                                              heroTag: 'post_${posts[index].id}',
-                                            ),
+                                            builder:
+                                                (context) => DetailScreen(
+                                                  post: posts[index],
+                                                  postId: posts[index].id,
+                                                  imageBase64:
+                                                      imageBase64 ?? '',
+                                                  description: description,
+                                                  createdAt: createdAt,
+                                                  fullName: fullName,
+                                                  latitude:
+                                                      data['latitude'] ?? 0.0,
+                                                  longitude:
+                                                      data['longitude'] ?? 0.0,
+                                                  category:
+                                                      data['category'] ??
+                                                      'Uncategorized',
+                                                  heroTag:
+                                                      'post_${posts[index].id}',
+                                                ),
                                           ),
                                         );
                                       },
@@ -765,7 +927,10 @@ class PostListView extends StatelessWidget {
                                     ),
                                     _buildInteractionButton(
                                       icon: Icons.share_outlined,
-                                      color: isDark ? Colors.grey[400] : Colors.grey[600],
+                                      color:
+                                          isDark
+                                              ? Colors.grey[400]
+                                              : Colors.grey[600],
                                       count: null,
                                       onTap: () => _handleShare(data),
                                       isDark: isDark,
@@ -797,7 +962,10 @@ class PostListView extends StatelessWidget {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey[850]!.withOpacity(0.5) : Colors.white.withOpacity(0.5),
+        color:
+            isDark
+                ? Colors.grey[850]!.withOpacity(0.5)
+                : Colors.white.withOpacity(0.5),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Material(
@@ -889,6 +1057,4 @@ class PostListView extends StatelessWidget {
           ),
     );
   }
-
-
 }

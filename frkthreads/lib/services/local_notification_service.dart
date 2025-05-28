@@ -1,44 +1,94 @@
 import 'dart:async';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
-// This is needed for Android 13 and above
 import 'package:permission_handler/permission_handler.dart';
+import 'dart:io' show Platform;
 
 class LocalNotificationService {
-  static final LocalNotificationService _instance = LocalNotificationService._();
+  static final LocalNotificationService _instance =
+      LocalNotificationService._();
   static LocalNotificationService get instance => _instance;
 
   final _notificationsPlugin = FlutterLocalNotificationsPlugin();
-  final _notificationStreamController = StreamController<Map<String, String>>.broadcast();
+  final _notificationStreamController =
+      StreamController<Map<String, String>>.broadcast();
 
-  Stream<Map<String, String>> get onNotificationTap => _notificationStreamController.stream;
-
+  Stream<Map<String, String>> get onNotificationTap =>
+      _notificationStreamController.stream;
   LocalNotificationService._();
 
   Future<void> initialize() async {
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-      defaultPresentSound: true,
-    );
-    
-    const initializationSettings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
+    try {
+      // Request notification permissions first
+      await requestPermissions();
+
+      const androidSettings = AndroidInitializationSettings(
+        '@mipmap/ic_launcher',
+      );
+      const iosSettings = DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+        defaultPresentSound: true,
+      );
+
+      const initializationSettings = InitializationSettings(
+        android: androidSettings,
+        iOS: iosSettings,
+      );
+
+      await _notificationsPlugin.initialize(
+        initializationSettings,
+        onDidReceiveNotificationResponse: _onNotificationTap,
+      );
+
+      // Create notification channels for Android
+      if (_getPlatform() == TargetPlatform.android) {
+        await _createNotificationChannels();
+      }
+
+      debugPrint('LocalNotificationService initialized successfully');
+    } catch (e) {
+      debugPrint('Error initializing notifications: $e');
+    }
+  }
+
+  Future<void> _createNotificationChannels() async {
+    final likesChannel = AndroidNotificationChannel(
+      'likes_channel',
+      'Post Likes',
+      description: 'Notifications for post likes',
+      importance: Importance.max,
+      enableVibration: true,
+      playSound: true,
+      showBadge: true,
+      ledColor: const Color.fromARGB(255, 33, 150, 243),
+      sound: const RawResourceAndroidNotificationSound('notify'),
     );
 
-    await _notificationsPlugin.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: _onNotificationTap,
-    );    // Request permissions for Android
-    final androidImplementation = _notificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    if (androidImplementation != null) {
-      await androidImplementation.requestNotificationsPermission();
-      debugPrint('Notification permissions requested');
-    }
+    final commentsChannel = AndroidNotificationChannel(
+      'comments_channel',
+      'Post Comments',
+      description: 'Notifications for post comments',
+      importance: Importance.high,
+      enableVibration: true,
+      playSound: true,
+      showBadge: true,
+      ledColor: const Color.fromARGB(255, 76, 175, 80),
+    );
+
+    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+        FlutterLocalNotificationsPlugin();
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(likesChannel);
+    await flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(commentsChannel);
   }
 
   void _onNotificationTap(NotificationResponse response) {
@@ -54,16 +104,22 @@ class LocalNotificationService {
   }
 
   Future<bool> _checkPermissions() async {
-    if (Theme.of(GlobalObjectKey(this).currentContext!).platform == TargetPlatform.android) {
+    if (_getPlatform() == TargetPlatform.android) {
       final status = await Permission.notification.status;
-      return status.isGranted;
+      if (!status.isGranted) {
+        debugPrint(
+          'Notification permissions not granted. Current status: ${status.name}',
+        );
+        return false;
+      }
     }
-    return true; // iOS permissions are handled during initialization
+    return true;
   }
 
   Future<bool> requestPermissions() async {
-    if (Theme.of(GlobalObjectKey(this).currentContext!).platform == TargetPlatform.android) {
+    if (_getPlatform() == TargetPlatform.android) {
       final status = await Permission.notification.request();
+      debugPrint('Notification permission request result: ${status.name}');
       return status.isGranted;
     }
     return true;
@@ -79,7 +135,6 @@ class LocalNotificationService {
         debugPrint('Notification permissions not granted');
         return;
       }
-
       final androidDetails = AndroidNotificationDetails(
         'likes_channel',
         'Post Likes',
@@ -88,6 +143,8 @@ class LocalNotificationService {
         priority: Priority.high,
         enableVibration: true,
         playSound: true,
+        sound: const RawResourceAndroidNotificationSound('notify'),
+        icon: '@mipmap/ic_launcher',
         color: const Color.fromARGB(255, 33, 150, 243),
         ledColor: const Color.fromARGB(255, 33, 150, 243),
         ledOnMs: 1000,
@@ -132,7 +189,6 @@ class LocalNotificationService {
         debugPrint('Notification permissions not granted');
         return;
       }
-
       final androidDetails = AndroidNotificationDetails(
         'comments_channel',
         'Post Comments',
@@ -141,6 +197,8 @@ class LocalNotificationService {
         priority: Priority.high,
         enableVibration: true,
         playSound: true,
+        sound: const RawResourceAndroidNotificationSound('notify'),
+        icon: '@mipmap/ic_launcher',
         color: const Color.fromARGB(255, 76, 175, 80),
         ledColor: const Color.fromARGB(255, 76, 175, 80),
         ledOnMs: 1000,
@@ -173,6 +231,12 @@ class LocalNotificationService {
     } catch (e) {
       debugPrint('Error showing comment notification: $e');
     }
+  }
+
+  TargetPlatform _getPlatform() {
+    if (Platform.isAndroid) return TargetPlatform.android;
+    if (Platform.isIOS) return TargetPlatform.iOS;
+    return TargetPlatform.android; // Default to Android
   }
 
   void dispose() {

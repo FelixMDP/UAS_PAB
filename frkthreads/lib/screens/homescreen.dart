@@ -10,6 +10,9 @@ import 'package:frkthreads/providers/theme_provider.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:curved_navigation_bar/curved_navigation_bar.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:frkthreads/widgets/story_list.dart';
 import 'package:frkthreads/services/notification_service.dart';
@@ -398,7 +401,28 @@ class PostListView extends StatelessWidget {
       final description = data['description'] ?? '';
       final fullName = data['fullName'] ?? 'Anonymous';
       final shareText = 'Post by $fullName\n\n$description';
-      await Share.share(shareText);
+
+      final imageBase64 = data['image'] as String?;
+      if (imageBase64 != null && imageBase64.isNotEmpty) {
+        // Decode base64 image
+        final bytes = base64Decode(imageBase64);
+
+        // Get temporary directory
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/shared_image.png');
+
+        // Write bytes to file
+        await file.writeAsBytes(bytes);
+
+        // Share image file with text
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: shareText,
+        );
+      } else {
+        // Share text only
+        await Share.share(shareText);
+      }
     } catch (e) {
       debugPrint('Error sharing post: $e');
     }
